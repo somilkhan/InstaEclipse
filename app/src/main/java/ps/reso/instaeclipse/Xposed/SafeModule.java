@@ -59,18 +59,9 @@ import ps.reso.instaeclipse.utils.feature.FeatureManager;
 import ps.reso.instaeclipse.utils.log.Logging;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Startup-safe Xposed entrypoint.
- *
- * Instagram's Application.attach() runs on the main thread. Older InstaEclipse
- * bootstrap code performed DexKit discovery synchronously from that callback,
- * which can block startup for seconds on newer obfuscated builds and trigger an
- * ANR. This entrypoint performs only cheap state initialization on attach and
- * moves DexKit + feature discovery to a dedicated worker.
- */
+/** Startup-safe Xposed entrypoint; DexKit discovery never runs on Instagram's main thread. */
 @SuppressLint("UnsafeDynamicallyLoadedCode")
 public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygoteInit {
-
     private static final List<String> SUPPORTED_PACKAGES = CommonUtils.SUPPORTED_PACKAGES;
     private static final ExecutorService BOOTSTRAP_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "InstaEclipse-Bootstrap");
@@ -99,15 +90,13 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpparam) {
         if (!SUPPORTED_PACKAGES.contains(lpparam.packageName)) return;
-
         try {
             XposedHelpers.findAndHookMethod("android.app.Application", lpparam.classLoader, "attach", Context.class,
                     new XC_MethodHook() {
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) {
                             if (!BOOTSTRAP_STARTED.compareAndSet(false, true)) return;
-                            Context context = (Context) param.args[0];
-                            bootstrapAsync(context, lpparam);
+                            bootstrapAsync((Context) param.args[0], lpparam);
                         }
                     });
         } catch (Throwable t) {
@@ -116,9 +105,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
     }
 
     private void bootstrapAsync(Context context, XC_LoadPackage.LoadPackageParam lpparam) {
-        // Copy only cheap state before leaving the Xposed callback.
-        final Context appContext = context.getApplicationContext() != null
-                ? context.getApplicationContext() : context;
+        final Context appContext = context.getApplicationContext() != null ? context.getApplicationContext() : context;
         final ClassLoader classLoader = lpparam.classLoader;
         final String apkPath = lpparam.appInfo.sourceDir;
 
@@ -141,18 +128,15 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
             try {
                 Module.hostClassLoader = classLoader;
                 Module.moduleSourceDir = moduleSourceDir;
-
                 if (moduleLibDir == null) throw new IllegalStateException("DexKit native library directory unavailable");
                 System.load(moduleLibDir + "/libdexkit.so");
                 DexKitBridge bridge = DexKitBridge.create(apkPath);
                 Module.dexKitBridge = bridge;
-
                 FeatureManager.refreshFeatureStatus();
                 registerReceivers(appContext);
                 installAllFeatures(bridge, classLoader, lpparam);
                 ModuleLog.line("(InstaEclipse | Startup): ✅ asynchronous bootstrap complete");
             } catch (Throwable t) {
-                // A resolver failure must degrade the affected feature, never take down IG.
                 ModuleLog.line("(InstaEclipse | Startup): ❌ bootstrap failed safely: " + t);
             }
         });
@@ -166,15 +150,14 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
             String uri = cp.getString("downloaderCustomUri", "");
             if (!path.isEmpty()) FeatureFlags.downloaderCustomPath = path;
             if (!uri.isEmpty()) FeatureFlags.downloaderCustomUri = uri;
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) {}
     }
 
     private void registerReceivers(Context context) {
         try {
             Method m = Module.class.getDeclaredMethod("registerSyncReceiver", Context.class);
             m.setAccessible(true);
-            m.invoke(this, context);
+            m.invoke(new Module(), context);
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | Sync): ❌ receiver registration failed: " + t.getMessage());
         }
@@ -186,14 +169,9 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         }
     }
 
-    private void installAllFeatures(DexKitBridge bridge, ClassLoader classLoader,
-                                    XC_LoadPackage.LoadPackageParam lpparam) {
+    private void installAllFeatures(DexKitBridge bridge, ClassLoader classLoader, XC_LoadPackage.LoadPackageParam lpparam) {
         run("DevOptions", () -> new DevOptionsUnlockHook().handleDevOptions(bridge));
-        run("GhostSeen", () -> {
-            new GhostDMSeenHook().handleSeenBlock(bridge);
-            new GhostDMMarkAsReadHook(moduleSourceDir).install(classLoader);
-            new GhostChannelMarkAsReadHook().install(classLoader);
-        });
+        run("GhostSeen", () -> { new GhostDMSeenHook().handleSeenBlock(bridge); new GhostDMMarkAsReadHook(moduleSourceDir).install(classLoader); new GhostChannelMarkAsReadHook().install(classLoader); });
         run("GhostTyping", () -> new GhostTypingIndicatorHook().handleTypingBlock(bridge));
         run("GhostScreenshot", () -> new GhostScreenshotDetectionHook().handleScreenshotBlock(bridge));
         run("ScreenshotPermission", () -> new ScreenshotPermissionHook().install(classLoader));
@@ -214,10 +192,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         run("ForceReelQuality", () -> new ForceReelQualityHook().install(bridge, classLoader));
         run("AutoPlayDisable", () -> new DisableVideoAutoPlayHook().handleAutoPlayDisable(bridge));
         run("BuildExpired", () -> new BuildExpiredPopupHook().install(bridge, classLoader));
-        run("MediaDownload", () -> {
-            new FeedVideoDownloadHook().install(classLoader);
-            FeedVideoDownloadHook.installVideoUrlCaptureHook(bridge, classLoader);
-        });
+        run("MediaDownload", () -> { new FeedVideoDownloadHook().install(classLoader); FeedVideoDownloadHook.installVideoUrlCaptureHook(bridge, classLoader); });
         run("PostDownload", () -> new PostDownloadContextMenuHook().install(bridge, classLoader));
         run("EphemeralHook", () -> new GhostEphemeralKeepHook().install(bridge, classLoader));
         run("ViewOnceMedia", () -> new GhostPermanentViewHook().install(bridge, classLoader));
@@ -225,8 +200,6 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         run("ReelDownload", () -> new ReelDownloadHook().install(bridge, classLoader));
         run("ProfileDownload", ProfilePicDownloadHook::install);
         run("Interceptor", () -> new IGNetworkInterceptor().handleInterceptor(lpparam));
-
-        // UI discovery is deliberately last: it can wait for Instagram's Activity lifecycle.
         run("MainActivityUI", () -> new UIHookManager().mainActivity(classLoader));
     }
 
