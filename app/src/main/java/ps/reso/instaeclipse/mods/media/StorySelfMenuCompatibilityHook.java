@@ -23,11 +23,7 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Compatibility layer for Instagram's self-story menu. Recent builds use a different
- * option-list builder and dispatcher for the viewer's own story, while StoryDownloadHook
- * historically resolved the public-story path only.
- */
+/** Compatibility layer for Instagram's separate self-story option path. */
 public final class StorySelfMenuCompatibilityHook {
     private static final String ANCHOR = "[INTERNAL] Pause Playback";
     private static final String BUTTON_CACHE = "StoryDownload_button_v2";
@@ -45,12 +41,8 @@ public final class StorySelfMenuCompatibilityHook {
             List<Method> methods = DexKitCache.isCacheValid()
                     ? DexKitCache.loadMethods(BUTTON_CACHE, classLoader) : null;
             if (methods == null || methods.isEmpty()) methods = discoverButtons(bridge, classLoader);
-            if (methods.isEmpty()) {
-                ModuleLog.line("(IE|Story|Self) ⚠️ no additional option builders found");
-                return;
-            }
+            if (methods.isEmpty()) return;
 
-            final List<Method> targets = methods;
             XC_MethodHook hook = new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
@@ -67,7 +59,7 @@ public final class StorySelfMenuCompatibilityHook {
             };
 
             List<Method> hooked = new ArrayList<>();
-            for (Method method : targets) {
+            for (Method method : methods) {
                 try {
                     method.setAccessible(true);
                     XposedBridge.hookMethod(method, hook);
@@ -92,7 +84,7 @@ public final class StorySelfMenuCompatibilityHook {
                     Method method = data.getMethodInstance(classLoader);
                     if (!method.getReturnType().isArray()
                             || !CharSequence.class.isAssignableFrom(method.getReturnType().getComponentType())) continue;
-                    String key = method.getDeclaringClass().getName() + '#' + method.getName();
+                    String key = signature(method);
                     if (!seen.add(key)) continue;
                     method.setAccessible(true);
                     out.add(method);
@@ -110,7 +102,6 @@ public final class StorySelfMenuCompatibilityHook {
                     ? DexKitCache.loadMethods(CLICK_CACHE, classLoader) : null;
             if (candidates == null || candidates.isEmpty()) candidates = discoverClicks(bridge, classLoader);
 
-            // Do not double-hook the legacy dispatcher already owned by StoryDownloadHook.
             Set<String> legacy = new java.util.HashSet<>();
             if (DexKitCache.isCacheValid()) {
                 List<Method> old = DexKitCache.loadMethods("StoryDownload_click", classLoader);
@@ -157,16 +148,17 @@ public final class StorySelfMenuCompatibilityHook {
 
                         Method username = hookClass.getDeclaredMethod("extractUsernameFromReelItemHolder", Object.class);
                         Method mediaId = hookClass.getDeclaredMethod("extractMediaIdFromReelItemHolder", Object.class);
-                        Method handle = null;
                         username.setAccessible(true);
                         mediaId.setAccessible(true);
 
                         Object user = username.invoke(null, holder);
                         Object id = mediaId.invoke(null, holder);
+                        Method handle = null;
                         for (Method method : hookClass.getDeclaredMethods()) {
-                            if (!"handleStoryMedia".equals(method.getName()) || method.getParameterCount() != 4) continue;
-                            handle = method;
-                            break;
+                            if ("handleStoryMedia".equals(method.getName()) && method.getParameterCount() == 4) {
+                                handle = method;
+                                break;
+                            }
                         }
                         if (handle == null) {
                             ModuleLog.line("(IE|Story|Self) ❌ story media dispatcher missing");
@@ -174,7 +166,7 @@ public final class StorySelfMenuCompatibilityHook {
                         }
                         handle.setAccessible(true);
                         param.setResult(null);
-                        handle.invoke(null, context, mediaOptions, user, id);
+                        handle.invoke(new StoryDownloadHook(), context, mediaOptions, user, id);
                     } catch (Throwable t) {
                         ModuleLog.line("(IE|Story|Self) ❌ click compatibility: " + t);
                     }
@@ -183,8 +175,7 @@ public final class StorySelfMenuCompatibilityHook {
 
             List<Method> hooked = new ArrayList<>();
             for (Method method : candidates) {
-                if (legacy.contains(signature(method))) continue;
-                if (!hasCharSequenceParam(method)) continue;
+                if (legacy.contains(signature(method)) || !hasCharSequenceParam(method)) continue;
                 try {
                     method.setAccessible(true);
                     XposedBridge.hookMethod(method, hook);
@@ -202,9 +193,7 @@ public final class StorySelfMenuCompatibilityHook {
         List<Method> out = new ArrayList<>();
         try {
             List<MethodData> results = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create()
-                            .returnType("void")
-                            .usingStrings(ANCHOR)));
+                    .matcher(MethodMatcher.create().returnType("void").usingStrings(ANCHOR)));
             Set<String> seen = new java.util.HashSet<>();
             for (MethodData data : results) {
                 try {
@@ -253,12 +242,10 @@ public final class StorySelfMenuCompatibilityHook {
         Class<?> cls = value.getClass();
         while (cls != null && cls != Object.class) {
             for (java.lang.reflect.Field field : cls.getDeclaredFields()) {
-                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
-                if (field.getType().isPrimitive()) continue;
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {
                     field.setAccessible(true);
-                    Object nested = field.get(value);
-                    Context found = findContextRecursive(nested, visited, depth + 1);
+                    Context found = findContextRecursive(field.get(value), visited, depth + 1);
                     if (found != null) return found;
                 } catch (Throwable ignored) {}
             }
