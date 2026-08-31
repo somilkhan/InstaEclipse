@@ -8,9 +8,10 @@ import org.luckypray.dexkit.DexKitBridge;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.IXposedHookZygoteInit;
@@ -63,12 +64,12 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 @SuppressLint("UnsafeDynamicallyLoadedCode")
 public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygoteInit {
     private static final List<String> SUPPORTED_PACKAGES = CommonUtils.SUPPORTED_PACKAGES;
-    private static final ExecutorService BOOTSTRAP_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+    private static final ExecutorService BOOTSTRAP_EXECUTOR = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "InstaEclipse-Bootstrap");
         t.setDaemon(true);
         return t;
     });
-    private static final AtomicBoolean BOOTSTRAP_STARTED = new AtomicBoolean(false);
+    private static final Set<String> BOOTSTRAP_STARTED = ConcurrentHashMap.newKeySet();
 
     private static String moduleSourceDir;
     private static String moduleLibDir;
@@ -95,7 +96,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
                     new XC_MethodHook() {
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) {
-                            if (!BOOTSTRAP_STARTED.compareAndSet(false, true)) return;
+                            if (!BOOTSTRAP_STARTED.add(lpparam.packageName)) return;
                             bootstrapAsync((Context) param.args[0], lpparam);
                         }
                     });
@@ -133,7 +134,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
                 DexKitBridge bridge = DexKitBridge.create(apkPath);
                 Module.dexKitBridge = bridge;
                 FeatureManager.refreshFeatureStatus();
-                registerReceivers(appContext);
+                registerSyncReceiver(appContext);
                 installAllFeatures(bridge, classLoader, lpparam);
                 ModuleLog.line("(InstaEclipse | Startup): ✅ asynchronous bootstrap complete");
             } catch (Throwable t) {
@@ -153,19 +154,13 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         } catch (Throwable ignored) {}
     }
 
-    private void registerReceivers(Context context) {
+    private void registerSyncReceiver(Context context) {
         try {
             Method m = Module.class.getDeclaredMethod("registerSyncReceiver", Context.class);
             m.setAccessible(true);
             m.invoke(new Module(), context);
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | Sync): ❌ receiver registration failed: " + t.getMessage());
-        }
-        try {
-            UIHookManager.registerConfigImportReceiver(context);
-            UIHookManager.registerSettingsRestoreReceiver(context);
-        } catch (Throwable t) {
-            ModuleLog.line("(InstaEclipse | Receivers): ❌ " + t.getMessage());
         }
     }
 
