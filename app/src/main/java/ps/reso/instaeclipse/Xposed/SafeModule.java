@@ -44,6 +44,7 @@ import ps.reso.instaeclipse.mods.media.PostDownloadContextMenuHook;
 import ps.reso.instaeclipse.mods.media.ProfilePicDownloadHook;
 import ps.reso.instaeclipse.mods.media.ReelDownloadHook;
 import ps.reso.instaeclipse.mods.media.StoryDownloadHook;
+import ps.reso.instaeclipse.mods.media.UsernameResolverPatch;
 import ps.reso.instaeclipse.mods.misc.CaptionCopyContextMenuHook;
 import ps.reso.instaeclipse.mods.misc.CommentCopyHook;
 import ps.reso.instaeclipse.mods.misc.DisableDoubleTapLikeHook;
@@ -192,6 +193,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
             new FeedVideoDownloadHook().install(classLoader);
             FeedVideoDownloadHook.installVideoUrlCaptureHook(bridge, classLoader);
             ModernVideoVersionCaptureHook.install(bridge, classLoader);
+            UsernameResolverPatch.install(bridge, classLoader);
         });
         run("PostDownload", () -> new PostDownloadContextMenuHook().install(bridge, classLoader));
         run("EphemeralHook", () -> new GhostEphemeralKeepHook().install(bridge, classLoader));
