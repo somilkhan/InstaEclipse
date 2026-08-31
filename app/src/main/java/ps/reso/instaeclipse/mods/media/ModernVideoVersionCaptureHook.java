@@ -17,18 +17,14 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Modern Instagram no longer reliably exposes video versions through VideoVersionIntf.
- * Capture the already-parsed video_versions list instead, then read getUrl() from the
- * returned objects. This removes the dependency on the old interface implementor graph.
- */
-final class ModernVideoVersionCaptureHook {
+/** Captures modern Instagram video_versions directly instead of relying on VideoVersionIntf. */
+public final class ModernVideoVersionCaptureHook {
     private static final String CACHE_KEY = "ModernVideoVersionCapture_Getters";
     private static final int MAX_ITEMS = 32;
 
     private ModernVideoVersionCaptureHook() {}
 
-    static void install(DexKitBridge bridge, ClassLoader classLoader) {
+    public static void install(DexKitBridge bridge, ClassLoader classLoader) {
         try {
             List<Method> methods = DexKitCache.isCacheValid()
                     ? DexKitCache.loadMethods(CACHE_KEY, classLoader) : null;
