@@ -44,6 +44,7 @@ import ps.reso.instaeclipse.mods.media.PostDownloadContextMenuHook;
 import ps.reso.instaeclipse.mods.media.ProfilePicDownloadHook;
 import ps.reso.instaeclipse.mods.media.ReelDownloadHook;
 import ps.reso.instaeclipse.mods.media.StoryDownloadHook;
+import ps.reso.instaeclipse.mods.media.StorySelfMenuCompatibilityHook;
 import ps.reso.instaeclipse.mods.media.UsernameResolverPatch;
 import ps.reso.instaeclipse.mods.misc.CaptionCopyContextMenuHook;
 import ps.reso.instaeclipse.mods.misc.CommentCopyHook;
@@ -198,7 +199,10 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         run("PostDownload", () -> new PostDownloadContextMenuHook().install(bridge, classLoader));
         run("EphemeralHook", () -> new GhostEphemeralKeepHook().install(bridge, classLoader));
         run("ViewOnceMedia", () -> new GhostPermanentViewHook().install(bridge, classLoader));
-        run("StoryDownload", () -> new StoryDownloadHook().install(bridge, classLoader));
+        run("StoryDownload", () -> {
+            new StoryDownloadHook().install(bridge, classLoader);
+            StorySelfMenuCompatibilityHook.install(bridge, classLoader);
+        });
         run("ReelDownload", () -> new ReelDownloadHook().install(bridge, classLoader));
         run("ProfileDownload", ProfilePicDownloadHook::install);
         run("Interceptor", () -> new IGNetworkInterceptor().handleInterceptor(lpparam));
