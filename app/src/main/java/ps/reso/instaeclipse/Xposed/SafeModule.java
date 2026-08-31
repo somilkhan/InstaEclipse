@@ -39,6 +39,7 @@ import ps.reso.instaeclipse.mods.ghost.ScreenshotPermissionHook;
 import ps.reso.instaeclipse.mods.location.LocationSpoofHook;
 import ps.reso.instaeclipse.mods.media.FeedVideoDownloadHook;
 import ps.reso.instaeclipse.mods.media.ForceReelQualityHook;
+import ps.reso.instaeclipse.mods.media.ModernVideoVersionCaptureHook;
 import ps.reso.instaeclipse.mods.media.PostDownloadContextMenuHook;
 import ps.reso.instaeclipse.mods.media.ProfilePicDownloadHook;
 import ps.reso.instaeclipse.mods.media.ReelDownloadHook;
@@ -187,7 +188,11 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         run("ForceReelQuality", () -> new ForceReelQualityHook().install(bridge, classLoader));
         run("AutoPlayDisable", () -> new DisableVideoAutoPlayHook().handleAutoPlayDisable(bridge));
         run("BuildExpired", () -> new BuildExpiredPopupHook().install(bridge, classLoader));
-        run("MediaDownload", () -> { new FeedVideoDownloadHook().install(classLoader); FeedVideoDownloadHook.installVideoUrlCaptureHook(bridge, classLoader); });
+        run("MediaDownload", () -> {
+            new FeedVideoDownloadHook().install(classLoader);
+            FeedVideoDownloadHook.installVideoUrlCaptureHook(bridge, classLoader);
+            ModernVideoVersionCaptureHook.install(bridge, classLoader);
+        });
         run("PostDownload", () -> new PostDownloadContextMenuHook().install(bridge, classLoader));
         run("EphemeralHook", () -> new GhostEphemeralKeepHook().install(bridge, classLoader));
         run("ViewOnceMedia", () -> new GhostPermanentViewHook().install(bridge, classLoader));
