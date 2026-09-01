@@ -477,6 +477,8 @@ public class ReelDownloadHook {
                     (View.OnClickListener) v -> startReelDownload(actCopy, mediaCopy, controllerCopy),
                     I18n.t(activity, R.string.ig_dl_title), icon);
 
+            installReelImageOption(buttonAdder, actCopy, mediaCopy, controllerCopy);
+
         } catch (Throwable t) {
             ModuleLog.line("(IE|Reel) ❌ onOptionsBuilt: " + t);
         }
@@ -530,6 +532,33 @@ public class ReelDownloadHook {
         final int    finalIndex    = currentIndex;
         FeedVideoDownloadHook.mainHandler.post(() ->
                 FeedVideoDownloadHook.showPostDownloadDialog(ctx, allUrls, finalUsername, finalMediaId, finalIndex));
+    }
+
+    private static void installReelImageOption(Object buttonAdder, Activity activity, Object media, Object controller) {
+        try {
+            final Activity act=activity; final Object mediaCopy=media; final Object controllerCopy=controller;
+            buttonAdderMethod.invoke(buttonAdder, activity, (View.OnClickListener) v -> startReelImageDownload(act, mediaCopy, controllerCopy), "Reel as Image", resolveDownloadIcon(activity));
+            ModuleLog.line("(IE|Reel) Reel as Image option installed");
+        } catch (Throwable t) { ModuleLog.line("(IE|Reel) Reel as Image unavailable: "+t); }
+    }
+
+    private static void startReelImageDownload(Context ctx, Object media, Object controller) {
+        try {
+            String username=FeedVideoDownloadHook.extractUsernameFromMediaObject(media); if(username==null||username.isEmpty()) username="reel";
+            String mediaId="0"; try { Object id=media.getClass().getMethod("getId").invoke(media); if(id instanceof String && !((String)id).isEmpty()) mediaId=(String)id; } catch(Throwable ignored) {}
+            List<String> urls=FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx,media);
+            java.util.ArrayList<String> images=new java.util.ArrayList<>(); for(String url:urls) if(isLikelyImageUrl(url)) images.add(url);
+            if(images.isEmpty()){Toast.makeText(ctx,"Reel image not available",Toast.LENGTH_SHORT).show();return;}
+            int index=0; if(images.size()>1){int vi=findCarouselIndexFromView(ctx,images.size()); index=vi>=0?vi:findReelCarouselIndex(controller); if(index<0||index>=images.size()) index=0;}
+            final String url=images.get(index); final String filename=FeedVideoDownloadHook.buildFilename(username,"reel_image",mediaId,false); final String user=username;
+            Toast.makeText(ctx,"Downloading reel image…",Toast.LENGTH_SHORT).show();
+            FeedVideoDownloadHook.executor.submit(()->{try{boolean delegated=FeedVideoDownloadHook.downloadAndSave(ctx,url,filename,false,user); if(!delegated) FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,"Reel image saved",Toast.LENGTH_SHORT).show());}catch(Throwable e){FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,"Reel image failed: "+e.getMessage(),Toast.LENGTH_SHORT).show());}});
+        } catch(Throwable t){ModuleLog.line("(IE|Reel) Reel image download failed: "+t);}
+    }
+
+    private static boolean isLikelyImageUrl(String url){
+        if(url==null||url.isEmpty()) return false; String l=url.toLowerCase(java.util.Locale.ROOT);
+        return l.contains("dst-jpg")||l.contains("dst-png")||l.contains("dst-webp")||l.endsWith(".jpg")||l.contains(".jpg?")||l.endsWith(".jpeg")||l.contains(".jpeg?")||l.endsWith(".png")||l.contains(".png?")||l.endsWith(".webp")||l.contains(".webp?");
     }
 
     /** Reads the icon drawable ID from MediaOption$Option.DOWNLOAD enum value. */
