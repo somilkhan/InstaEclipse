@@ -37,9 +37,6 @@ public class ReelDownloadHook {
     private static final ThreadLocal<Boolean> ADDING_MODULE_BUTTON = new ThreadLocal<>();
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
-        // Keep the list-level patch as a compatibility fallback, but also intercept the
-        // final button insertion point below. Instagram 443 can still expose its native
-        // Download action through a path that bypasses the option list.
         installRemoveNativeDownloadOption(bridge, classLoader);
 
         if (DexKitCache.isCacheValid()) {
@@ -50,6 +47,11 @@ public class ReelDownloadHook {
                 cached.setAccessible(true);
                 FeatureStatusTracker.setHooked("ReelDownload");
                 XposedBridge.hookMethod(cached, new XC_MethodHook() {
+                    @Override protected void beforeHookedMethod(MethodHookParam p) {
+                        if (FeatureFlags.enableReelDownload && p.args != null && p.args.length >= 2) {
+                            installNativeDownloadButtonGuard(p.args[1]);
+                        }
+                    }
                     @Override protected void afterHookedMethod(MethodHookParam p) {
                         if (FeatureFlags.enableReelDownload) onOptionsBuilt(p);
                     }
@@ -87,6 +89,11 @@ public class ReelDownloadHook {
             DexKitCache.saveMethod("ReelDownload", target);
             FeatureStatusTracker.setHooked("ReelDownload");
             XposedBridge.hookMethod(target, new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    if (FeatureFlags.enableReelDownload && p.args != null && p.args.length >= 2) {
+                        installNativeDownloadButtonGuard(p.args[1]);
+                    }
+                }
                 @Override protected void afterHookedMethod(MethodHookParam p) {
                     if (FeatureFlags.enableReelDownload) onOptionsBuilt(p);
                 }
@@ -157,16 +164,20 @@ public class ReelDownloadHook {
     private static void installNativeDownloadButtonGuard(Object adder) {
         if (adder == null || BUTTON_ADDER_PATCH_INSTALLED.get()) return;
         Method candidate = null;
-        for (Method m : adder.getClass().getDeclaredMethods()) {
-            Class<?>[] ps = m.getParameterTypes();
-            if (ps.length == 4
-                    && Context.class.isAssignableFrom(ps[0])
-                    && View.OnClickListener.class.isAssignableFrom(ps[1])
-                    && ps[2] == String.class
-                    && ps[3] == int.class) {
-                candidate = m;
-                break;
+        Class<?> owner = adder.getClass();
+        while (owner != null && owner != Object.class && candidate == null) {
+            for (Method m : owner.getDeclaredMethods()) {
+                Class<?>[] ps = m.getParameterTypes();
+                if (ps.length == 4
+                        && Context.class.isAssignableFrom(ps[0])
+                        && View.OnClickListener.class.isAssignableFrom(ps[1])
+                        && ps[2] == String.class
+                        && ps[3] == int.class) {
+                    candidate = m;
+                    break;
+                }
             }
+            owner = owner.getSuperclass();
         }
         if (candidate == null) return;
         try {
@@ -181,7 +192,7 @@ public class ReelDownloadHook {
                     if (!(labelArg instanceof String)) return;
                     String label = ((String) labelArg).trim();
                     if (isNativeDownloadLabel(label)) {
-                        ModuleLog.line("(IE|Reel) ✅ intercepted native Download button");
+                        ModuleLog.line("(IE|Reel) 🚫 native Download button suppressed");
                         p.setResult(null);
                     }
                 }
