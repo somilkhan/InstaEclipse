@@ -89,7 +89,7 @@ public class StoryMentionHook {
         try {
             List<MethodData> getters = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create()
-                            .declaredClass("com.instagram.feed.media.LiveTreeMediaDict")
+                            .declaredClass("com.instagram.feed.media.Media")
                             .paramCount(0)
                             .usingEqStrings(List.of("reel_mentions"))));
             for (MethodData md : getters) {
