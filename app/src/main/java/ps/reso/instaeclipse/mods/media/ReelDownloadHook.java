@@ -33,7 +33,8 @@ public class ReelDownloadHook {
     private static Field cachedInnerField = null;
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
-        installReduceOptionsListPatch(bridge, classLoader);
+        // Do NOT add Instagram's native DOWNLOAD option here. It bypasses our chooser and was
+        // the reason tapping Reel Download could immediately start a video download.
         if (DexKitCache.isCacheValid()) {
             Method cached = DexKitCache.loadMethod("ReelDownload", classLoader);
             if (cached != null) {
@@ -59,22 +60,6 @@ public class ReelDownloadHook {
             XposedBridge.hookMethod(target, new XC_MethodHook() { @Override protected void afterHookedMethod(MethodHookParam p) { if (FeatureFlags.enableReelDownload) onOptionsBuilt(p); } });
             ModuleLog.line("(IE|Reel) ✅ hooked: " + hookMethod.getDeclaringClass().getName() + "." + hookMethod.getName());
         } catch (Throwable t) { ModuleLog.line("(IE|Reel) ❌ install: " + t); }
-    }
-
-    private static void installReduceOptionsListPatch(DexKitBridge bridge, ClassLoader classLoader) {
-        try {
-            Object downloadOption = null;
-            Class<?> optionClass = classLoader.loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
-            for (Object v : (Object[]) optionClass.getMethod("values").invoke(null)) if (v.toString().equals("DOWNLOAD")) { downloadOption = v; break; }
-            if (downloadOption == null) return;
-            final Object download = downloadOption;
-            XC_MethodHook hook = new XC_MethodHook() { @Override protected void afterHookedMethod(MethodHookParam p) { if (!FeatureFlags.enableReelDownload) return; try { Object r=p.getResult(); if(r instanceof List<?> l && !l.contains(download)) ((List<Object>)l).add(download); } catch(Throwable t){ ModuleLog.line("(IE|Reel) ❌ options-list patch failed: "+t); } } };
-            if (DexKitCache.isCacheValid()) { Method c= DexKitCache.loadMethod("ReelOptionsListBuilder", classLoader); if(c!=null){XposedBridge.hookMethod(c,hook);return;} }
-            String d="Lcom/instagram/feed/media/mediaoption/MediaOption$Option;";
-            var methods=bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().returnType("java.util.ArrayList").addUsingField(d+"->PLAYBACK_CONTROLS:"+d).addUsingField(d+"->UNSAVE:"+d)));
-            if(methods.isEmpty()){ModuleLog.line("(IE|Reel) ⚠️ Reduced options-list builder not found");return;}
-            Method target=methods.get(0).getMethodInstance(classLoader); target.setAccessible(true); XposedBridge.hookMethod(target,hook); DexKitCache.saveMethod("ReelOptionsListBuilder",target); FeatureStatusTracker.setHooked("ReelDownload");
-        } catch(Throwable t){ModuleLog.line("(IE|Reel) ❌ installReduceOptionsListPatch: "+t);}
     }
 
     private static int findReelCarouselIndex(Object controller) {
