@@ -7,6 +7,7 @@ import android.os.Looper;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.mods.media.ReelDownloadHook;
@@ -15,12 +16,13 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 /** Narrow runtime compatibility hotfixes for Instagram 443.0.0.48.82. */
-public final class StabilityHotfix {
+public final class StabilityHotfix implements IXposedHookLoadPackage {
     private static final AtomicBoolean INSTALLED = new AtomicBoolean(false);
     private static volatile Activity currentActivity;
     private static volatile Method reelInject;
     private static volatile Method reelGuard;
 
+    @Override
     public void handleLoadPackage(de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam lpparam) {
         if (!"com.instagram.android".equals(lpparam.packageName)) return;
         if (!INSTALLED.compareAndSet(false, true)) return;
