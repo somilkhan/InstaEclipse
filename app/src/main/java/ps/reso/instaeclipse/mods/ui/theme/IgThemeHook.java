@@ -27,11 +27,9 @@ import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 /**
- * Custom Theme: hooks the standard Android resource/color-resolution APIs (Resources.Theme,
- * Resources, Context, TypedArray) plus Activity/PhoneWindow lifecycle, so a custom palette is
- * substituted everywhere Instagram resolves a themed color. Stateful color lists and drawable
- * tints are handled explicitly so controls such as Instagram's liked-heart state keep their
- * semantic selected/activated color instead of losing the state tint.
+ * Custom Theme: hooks Android resource/color resolution and the direct/stateful color mutation
+ * APIs Instagram uses for its modern UI. Stateful colors are explicitly preserved so selected
+ * controls such as the liked-heart retain their semantic active color.
  */
 public class IgThemeHook {
 
@@ -47,6 +45,7 @@ public class IgThemeHook {
             hookContextGetColor();
             hookTypedArrayGetColor(classLoader);
             hookStatefulColors(classLoader);
+            hookDirectColorMutators();
             hookActivityLifecycle();
             hookPhoneWindowColors(classLoader);
             installed = true;
@@ -206,12 +205,7 @@ public class IgThemeHook {
         });
     }
 
-    /**
-     * ColorStateList is the Android primitive used by stateful icon/text tints. Instagram's
-     * liked-heart is stateful; remapping only getColor()/TypedArray#getColor() is insufficient
-     * because the selected color can live in a ColorStateList returned by resources or applied
-     * directly to an ImageView/Drawable.
-     */
+    /** Handles ColorStateList-backed selected/activated colors such as the liked-heart. */
     private void hookStatefulColors(final ClassLoader cl) {
         XC_MethodHook resourceListHook = new XC_MethodHook() {
             @Override
@@ -286,6 +280,34 @@ public class IgThemeHook {
         }
     }
 
+    /** Covers colors passed directly by modern Instagram UI code instead of through resources. */
+    private void hookDirectColorMutators() {
+        try {
+            XposedHelpers.findAndHookMethod(View.class, "setBackgroundColor", int.class, new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.shouldSkipRemap(param.thisObject)) return;
+                    param.args[0] = IgColorRemapEngine.remap((Integer) param.args[0]);
+                }
+            });
+        } catch (Throwable ignored) {}
+        try {
+            XposedHelpers.findAndHookMethod(TextView.class, "setTextColor", int.class, new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.isBypassing()) return;
+                    param.args[0] = IgColorRemapEngine.remap((Integer) param.args[0]);
+                }
+            });
+        } catch (Throwable ignored) {}
+        try {
+            XposedHelpers.findAndHookMethod(Drawable.class, "setTint", int.class, new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.isBypassing()) return;
+                    param.args[0] = IgColorRemapEngine.remap((Integer) param.args[0]);
+                }
+            });
+        } catch (Throwable ignored) {}
+    }
+
     private void hookActivityLifecycle() {
         XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
             @Override
@@ -336,11 +358,6 @@ public class IgThemeHook {
         }
     }
 
-    /**
-     * Called after a settings sync so a theme change is visible immediately, rather than
-     * waiting for the user to navigate away and back (which is the only other time the
-     * Activity onResume/onCreate hooks would naturally re-run).
-     */
     public static void refreshCurrentActivity() {
         Activity activity = UIHookManager.getCurrentActivity();
         if (activity == null || activity.isFinishing()) return;
