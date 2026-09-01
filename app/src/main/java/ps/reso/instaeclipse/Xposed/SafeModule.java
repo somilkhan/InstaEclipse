@@ -55,8 +55,8 @@ import ps.reso.instaeclipse.mods.misc.StoryMentionHook;
 import ps.reso.instaeclipse.mods.network.IGNetworkInterceptor;
 import ps.reso.instaeclipse.mods.ui.UIHookManager;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeHook;
-import ps.reso.instaeclipse.utils.compat.CompatibilityRuntime;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
+import ps.reso.instaeclipse.utils.core.CompatibilityRuntime;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -124,7 +124,6 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         } catch (Throwable t) {
             ModuleLog.line("(DexKitCache) ❌ init failed: " + t.getMessage());
         }
-        CompatibilityRuntime.initialize(igVersion);
         try {
             Logging.init(appContext, "instaeclipse_module.log");
         } catch (Throwable t) {
@@ -217,12 +216,13 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
     private interface FeatureInstall { void install() throws Throwable; }
 
     private static void run(String name, FeatureInstall install) {
-        if (!CompatibilityRuntime.begin(name)) return;
+        if (!CompatibilityRuntime.canRun(name)) return;
+        CompatibilityRuntime.begin(name);
         try {
             install.install();
             CompatibilityRuntime.installed(name, "feature-installer");
         } catch (Throwable t) {
-            CompatibilityRuntime.unavailable(name, t.toString());
+            CompatibilityRuntime.resolverFailed(name, t.toString());
             ModuleLog.line("(InstaEclipse | " + name + "): ❌ isolated failure: " + t);
         }
     }
