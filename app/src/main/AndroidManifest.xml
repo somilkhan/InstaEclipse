@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="ps.reso.instaeclipse">
-
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -19,7 +17,6 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -27,8 +24,7 @@
         <activity
             android:name=".mods.devops.config.JsonImportActivity"
             android:exported="true"
-            android:theme="@style/Theme.InstaEclipse">
-        </activity>
+            android:theme="@style/Theme.InstaEclipse" />
 
         <activity
             android:name=".mods.devops.config.JsonExportActivity"
@@ -45,52 +41,35 @@
             android:exported="true"
             android:theme="@style/Theme.InstaEclipse" />
 
-        <!-- Companion-app service: receives downloaded file (via ParcelFileDescriptor) from the
-             Xposed module (running in Instagram's process) and writes it to the SAF folder
-             whose permission belongs to the companion app. -->
+        <!--
+            This service intentionally remains exported because the Xposed module runs
+            inside Instagram's UID and forwards downloads to this companion-app process.
+            A package-local/signature permission would prevent that cross-process handoff.
+        -->
         <service
             android:name=".mods.media.DownloadSaveService"
             android:exported="true"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync"
+            tools:ignore="ExportedService" />
 
-        <!-- Xposed Meta-data -->
-        <meta-data
-            android:name="xposedmodule"
-            android:value="true" />
-        <meta-data
-            android:name="xposeddescription"
-            android:value="Enhance your Instagram experience" />
-        <meta-data
-            android:name="xposedminversion"
-            android:value="82" />
-        <meta-data
-            android:name="xposedsharedprefs"
-            android:value="true" />
-        <meta-data
-            android:name="xposedscope"
-            android:resource="@array/target_app" />
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposeddescription" android:value="Enhance your Instagram experience" />
+        <meta-data android:name="xposedminversion" android:value="82" />
+        <meta-data android:name="xposedsharedprefs" android:value="true" />
+        <meta-data android:name="xposedscope" android:resource="@array/target_app" />
     </application>
 
-    <!-- Permissions -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="ManifestOrder,QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET" />
-
     <uses-permission android:name="android.permission.VIBRATE" />
-
-    <!-- For Android 11+ broad storage access -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
-
-    <!-- Foreground service (required API 28+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- dataSync foreground service type (required API 34+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <!-- Post notifications (required API 33+ to show download progress) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
 
 </manifest>

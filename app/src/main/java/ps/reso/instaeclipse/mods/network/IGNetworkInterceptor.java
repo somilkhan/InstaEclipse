@@ -19,7 +19,6 @@ public class IGNetworkInterceptor {
         try {
             ClassLoader classLoader = lpparam.classLoader;
 
-            // Locate the TigonServiceLayer class dynamically
             Class<?> tigonClass = classLoader.loadClass("com.instagram.api.tigon.TigonServiceLayer");
             Method[] methods = tigonClass.getDeclaredMethods();
 
@@ -28,7 +27,6 @@ public class IGNetworkInterceptor {
             Class<?> random_param_3 = null;
             String uriFieldName = null;
 
-            // Analyze methods in TigonServiceLayer
             for (Method method : methods) {
                 if (method.getName().equals("startRequest") && method.getParameterCount() == 3) {
                     Class<?>[] paramTypes = method.getParameterTypes();
@@ -39,7 +37,6 @@ public class IGNetworkInterceptor {
                 }
             }
 
-            // Dynamically identify the URI field in the request object
             if (random_param_1 != null) {
                 for (Field field : random_param_1.getDeclaredFields()) {
                     if (field.getType().equals(URI.class)) {
@@ -49,7 +46,6 @@ public class IGNetworkInterceptor {
                 }
             }
 
-            // If classes and fields are resolved, hook the method
             if (random_param_1 != null && random_param_2 != null && random_param_3 != null && uriFieldName != null) {
                 String finalUriFieldName = uriFieldName;
                 XposedHelpers.findAndHookMethod("com.instagram.api.tigon.TigonServiceLayer", classLoader, "startRequest",
@@ -57,105 +53,118 @@ public class IGNetworkInterceptor {
                             @Override
                             protected void beforeHookedMethod(MethodHookParam param) {
                                 Object requestObj = param.args[0];
-                                URI uri = (URI) XposedHelpers.getObjectField(requestObj, finalUriFieldName);
+                                URI uri;
+                                try {
+                                    uri = (URI) XposedHelpers.getObjectField(requestObj, finalUriFieldName);
+                                } catch (Throwable t) {
+                                    ModuleLog.line("(InstaEclipse | Interceptor): request URI read failed: " + t.getMessage());
+                                    return;
+                                }
 
                                 if (uri != null && uri.getPath() != null) {
+                                    String path = uri.getPath();
                                     boolean shouldDrop = false;
 
-                                    // Ghost Mode URIs
                                     if (FeatureFlags.isGhostSeen) {
-                                        shouldDrop |= uri.getPath().contains("/threads/") && uri.getPath().contains("/opened");
+                                        shouldDrop |= path.contains("/threads/") && path.contains("/opened");
                                     }
                                     if (FeatureFlags.keepEphemeralMessages) {
-                                        shouldDrop |= uri.getPath().contains("/mark_ephemeral_item_ranges_viewed");
+                                        shouldDrop |= path.contains("/mark_ephemeral_item_ranges_viewed");
                                     }
                                     if (FeatureFlags.isGhostScreenshot) {
-                                        shouldDrop |= uri.getPath().endsWith("/screenshot/") || uri.getPath().endsWith("/ephemeral_screenshot/");
+                                        shouldDrop |= path.endsWith("/screenshot/") || path.endsWith("/ephemeral_screenshot/");
                                     }
                                     if (FeatureFlags.isGhostViewOnce) {
-                                        shouldDrop |= uri.getPath().endsWith("/item_replayed/");
-                                        shouldDrop |= (uri.getPath().contains("/direct") && uri.getPath().endsWith("/item_seen/"));
+                                        shouldDrop |= path.endsWith("/item_replayed/");
+                                        shouldDrop |= (path.contains("/direct") && path.endsWith("/item_seen/"));
                                     }
                                     if (FeatureFlags.isGhostStory) {
-                                        shouldDrop |= uri.getPath().contains("/api/v2/media/seen/");
+                                        shouldDrop |= path.contains("/api/v2/media/seen/");
                                         FeatureStatusTracker.setHooked("GhostStories");
                                     }
                                     if (FeatureFlags.isGhostLive) {
-                                        shouldDrop |= uri.getPath().contains("/heartbeat_and_get_viewer_count/");
+                                        shouldDrop |= path.contains("/heartbeat_and_get_viewer_count/");
                                         FeatureStatusTracker.setHooked("GhostLive");
                                     }
 
-                                    // Distraction Free
                                     if (FeatureFlags.disableStories) {
-                                        shouldDrop |= uri.getPath().contains("/feed/reels_tray/")
-                                                || uri.getPath().contains("feed/get_latest_reel_media/")
-                                                || uri.getPath().contains("direct_v2/pending_inbox/?visual_message")
-                                                || uri.getPath().contains("stories/hallpass/")
-                                                || uri.getPath().contains("/api/v1/feed/reels_media_stream/");
+                                        shouldDrop |= path.contains("/feed/reels_tray/")
+                                                || path.contains("feed/get_latest_reel_media/")
+                                                || path.contains("direct_v2/pending_inbox/?visual_message")
+                                                || path.contains("stories/hallpass/")
+                                                || path.contains("/api/v1/feed/reels_media_stream/");
                                     }
                                     if (FeatureFlags.disableFeed) {
-                                        shouldDrop |= uri.getPath().endsWith("/feed/timeline/");
+                                        shouldDrop |= path.endsWith("/feed/timeline/");
                                     }
                                     if (FeatureFlags.disableReels && !FeatureFlags.disableReelsExceptDM) {
-                                        shouldDrop |= uri.getPath().endsWith("/qp/batch_fetch/")
-                                                || uri.getPath().contains("api/v1/clips")
-                                                || uri.getPath().contains("clips")
-                                                || uri.getPath().contains("mixed_media")
-                                                || uri.getPath().contains("mixed_media/discover/stream/");
+                                        shouldDrop |= path.endsWith("/qp/batch_fetch/")
+                                                || path.contains("api/v1/clips")
+                                                || path.contains("clips")
+                                                || path.contains("mixed_media")
+                                                || path.contains("mixed_media/discover/stream/");
                                     }
                                     if (FeatureFlags.disableReelsExceptDM) {
-                                        if (uri.getPath().startsWith("/api/v1/direct_v2/")) {
+                                        if (path.startsWith("/api/v1/direct_v2/")) {
                                             return;
                                         }
-                                        shouldDrop |= (uri.getPath().startsWith("/api/v1/clips/") && uri.getQuery() != null
+                                        shouldDrop |= (path.startsWith("/api/v1/clips/") && uri.getQuery() != null
                                                 && (uri.getQuery().contains("next_media_ids=")
                                                 || uri.getQuery().contains("max_id=")))
-                                                || uri.getPath().contains("/clips/discover/")
-                                                || uri.getPath().contains("/mixed_media/discover/stream/");
+                                                || path.contains("/clips/discover/")
+                                                || path.contains("/mixed_media/discover/stream/");
                                     }
                                     if (FeatureFlags.disableExplore) {
-                                        shouldDrop |= uri.getPath().contains("/discover/topical_explore")
-                                                || uri.getPath().contains("/discover/topical_explore_stream")
-                                                || (uri.getHost().contains("i.instagram.com") && uri.getPath().contains("/api/v1/fbsearch/top_serp/"));
+                                        shouldDrop |= path.contains("/discover/topical_explore")
+                                                || path.contains("/discover/topical_explore_stream")
+                                                || (uri.getHost() != null && uri.getHost().contains("i.instagram.com") && path.contains("/api/v1/fbsearch/top_serp/"));
                                     }
                                     if (FeatureFlags.disableComments) {
-                                        shouldDrop |= uri.getPath().contains("/api/v1/media/") && uri.getPath().contains("comments/");
+                                        shouldDrop |= path.contains("/api/v1/media/") && path.contains("comments/");
                                     }
 
-                                    // Ads
                                     if (FeatureFlags.isAdBlockEnabled) {
-                                        shouldDrop |= uri.getPath().contains("profile_ads/get_profile_ads/")
-                                                || uri.getPath().contains("/async_ads/")
-                                                || uri.getPath().contains("/feed/injected_reels_media/")
-                                                || uri.getPath().equals("/api/v1/ads/graphql/");
+                                        shouldDrop |= path.contains("profile_ads/get_profile_ads/")
+                                                || path.contains("/async_ads/")
+                                                || path.contains("/feed/injected_reels_media/")
+                                                || path.equals("/api/v1/ads/graphql/");
                                     }
 
-                                    // Analytics
                                     if (FeatureFlags.isAnalyticsBlocked) {
-                                        shouldDrop |= uri.getHost().contains("graph.instagram.com")
-                                                || uri.getHost().contains("graph.facebook.com")
-                                                || uri.getPath().contains("/logging_client_events");
+                                        shouldDrop |= (uri.getHost() != null && (uri.getHost().contains("graph.instagram.com")
+                                                || uri.getHost().contains("graph.facebook.com")))
+                                                || path.contains("/logging_client_events");
                                     }
 
-                                    // Misc
                                     if (FeatureFlags.spoofLastSeen) {
-                                        String p = uri.getPath();
-                                        shouldDrop |= p.contains("/push/setForegroundState/")
-                                                || p.contains("/accounts/update_active_status")
-                                                || p.contains("/notes/create_note")
-                                                || p.contains("/accounts/set_presence_disabled")
-                                                || p.contains("/update_active_status")
-                                                || p.contains("/banyan/banyan/")
-                                                || p.endsWith("/last_active/")
-                                                || p.contains("/presence/");
+                                        shouldDrop |= path.contains("/push/setForegroundState/")
+                                                || path.contains("/accounts/update_active_status")
+                                                || path.contains("/notes/create_note")
+                                                || path.contains("/accounts/set_presence_disabled")
+                                                || path.contains("/update_active_status")
+                                                || path.contains("/banyan/banyan/")
+                                                || path.endsWith("/last_active/")
+                                                || path.contains("/presence/");
                                         FeatureStatusTracker.setHooked("SpoofLastSeen");
                                     }
+
+                                    // Instagram's repost implementation has moved between
+                                    // several request routes. The old /media/create_note/ check
+                                    // is unrelated to reposting. Match the actual repost route
+                                    // family without relying on an obfuscated method name.
                                     if (FeatureFlags.disableRepost) {
-                                        shouldDrop |= uri.getPath().contains("/media/create_note/");
+                                        String normalized = path.toLowerCase(java.util.Locale.ROOT);
+                                        shouldDrop |= normalized.contains("/repost")
+                                                || normalized.contains("/reposts/")
+                                                || normalized.contains("/media/repost/")
+                                                || normalized.contains("/media/reposts/")
+                                                || normalized.contains("/create_repost/");
+                                        FeatureStatusTracker.setHooked("DisableRepost");
                                     }
+
                                     if (FeatureFlags.disableDiscoverPeople) {
-                                        shouldDrop |= uri.getPath().contains("/discover/ayml/");
-                                        shouldDrop |= uri.getPath().contains("discover/chaining/");
+                                        shouldDrop |= path.contains("/discover/ayml/");
+                                        shouldDrop |= path.contains("discover/chaining/");
                                         FeatureStatusTracker.setHooked("DisableDiscoverPeople");
                                     }
 
@@ -163,10 +172,9 @@ public class IGNetworkInterceptor {
                                         try {
                                             URI fakeUri = new URI("https", "127.0.0.1", "/404", null);
                                             XposedHelpers.setObjectField(requestObj, finalUriFieldName, fakeUri);
-                                        } catch (Exception ignored) {}
+                                        } catch (Throwable ignored) {}
                                     }
 
-                                    // Follow status
                                     if (FeatureFlags.showFollowerToast) {
                                         FeatureStatusTracker.setHooked("FollowerToast");
                                         FollowStatusHook.handleRequest(uri, param.args);
@@ -179,7 +187,7 @@ public class IGNetworkInterceptor {
                 ModuleLog.line("(InstaEclipse | Interceptor): Could not resolve required classes or fields.");
             }
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             ModuleLog.line("(InstaEclipse | Interceptor): ❌ " + e.getMessage());
         }
     }

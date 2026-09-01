@@ -1,55 +1,86 @@
-name: Build Debug APK
+name: Build & Verify Debug APK
 
 on:
   push:
     branches:
-      - main  # Trigger workflow on pushes to the main branch
+      - main
       - 0.4
+      - 'stability/latest-instagram'
   pull_request:
     branches:
-      - main  # Trigger workflow on pull requests to the main branch
-  workflow_dispatch:  # Allow manual triggering via the GitHub Actions UI
+      - main
+      - 'stability/latest-instagram'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  build_debug_apk:
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
+jobs:
+  verify:
+    name: Test, lint and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      # Step 1: Check out the repository
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # Step 2: Set up JDK 17 (also caches Gradle dependencies/wrapper)
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
           java-version: '17'
-          cache: 'gradle'
+          cache: gradle
 
-      # Step 3: Set up Android SDK
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v2
+      - name: Set up Android SDK tooling
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
-      # Step 4: Grant execution permissions to gradlew
-      - name: Grant execute permission to gradlew
+      - name: Prepare Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      # Step 5: Run unit tests before building
       - name: Run unit tests
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew testDebugUnitTest --stacktrace
 
-      # Step 6: Build the debug APK
+      - name: Run Android lint
+        run: ./gradlew lintDebug --stacktrace
+
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --stacktrace
 
-      # Step 7: Upload the debug APK as an artifact
+      - name: Verify APK exists
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apk
+          name: instaeclipse-debug-${{ github.sha }}
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-reports-${{ github.sha }}
+          path: |
+            app/build/reports/**
+            app/build/test-results/**
+          if-no-files-found: ignore
+          retention-days: 7

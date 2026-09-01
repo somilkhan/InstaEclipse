@@ -7,14 +7,15 @@ import android.graphics.drawable.Drawable;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
-import android.widget.ImageView;
+
+import androidx.appcompat.widget.AppCompatImageView;
 
 /**
  * Self-contained pinch-to-zoom + pan + double-tap-to-reset image view, used to show a
  * feed photo full-screen without navigating away (issue #174). Standard
  * ScaleGestureDetector/Matrix pattern; no Instagram internals involved.
  */
-class ZoomableImageView extends ImageView {
+class ZoomableImageView extends AppCompatImageView {
 
     private static final float MIN_SCALE = 1f;
     private static final float MAX_SCALE = 5f;

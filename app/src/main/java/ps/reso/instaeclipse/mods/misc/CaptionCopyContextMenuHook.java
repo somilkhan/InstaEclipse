@@ -176,7 +176,7 @@ public class CaptionCopyContextMenuHook {
         try {
             List<MethodData> results = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create()
-                            .declaredClass("com.instagram.feed.media.LiveTreeMediaDict")
+                            .declaredClass("com.instagram.feed.media.Media")
                             .paramCount(0)
                             .usingEqStrings(List.of("caption"))));
 
@@ -209,9 +209,10 @@ public class CaptionCopyContextMenuHook {
                     break;
                 }
             }
-            if (dict == null) return null;
+            Object target = dict != null ? dict : media;
+            if (target == null) return null;
 
-            Object captionObj = captionGetter.invoke(dict);
+            Object captionObj = captionGetter.invoke(target);
             if (captionObj == null) return null;
 
             String bestVal = null;

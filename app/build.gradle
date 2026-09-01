@@ -16,6 +16,13 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    lint {
+        // The default values/strings.xml is the intentional fallback for locales
+        // whose translation is incomplete. Missing translations must not block a
+        // release; actual resource/API correctness issues remain fatal.
+        disable 'MissingTranslation'
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -36,7 +43,6 @@ android {
 }
 
 dependencies {
-    // Core Android dependencies
     implementation libs.appcompat
     implementation libs.material
     implementation libs.constraintlayout
@@ -45,14 +51,11 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation "androidx.documentfile:documentfile:1.1.0"
     implementation libs.osmdroid
-
-    // External library for shared preferences
     implementation libs.fileprefs
-    // Testing dependencies
+
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core.v361
 
-    // Compile-only dependency
     compileOnly files('libs/api-82.jar')
 }
