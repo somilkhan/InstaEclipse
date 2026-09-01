@@ -25,11 +25,9 @@ public final class CompatibilityRuntime {
         return health;
     }
 
-    /** Returns false while the feature is in its cooldown period. */
     public static boolean canRun(String feature) {
         FeatureHealth health = FEATURES.get(feature);
-        if (health == null) return true;
-        if (!health.circuitOpen) return true;
+        if (health == null || !health.circuitOpen) return true;
         long now = SystemClock.elapsedRealtime();
         if (now - health.circuitOpenedMs >= CIRCUIT_COOLDOWN_MS) {
             health.circuitOpen = false;
@@ -41,7 +39,6 @@ public final class CompatibilityRuntime {
         return false;
     }
 
-    /** Execute feature code without allowing a feature exception to escape into Instagram. */
     public static boolean guard(String feature, Runnable action) {
         if (action == null || !canRun(feature)) return false;
         begin(feature);
@@ -69,6 +66,13 @@ public final class CompatibilityRuntime {
         health.status = Status.RESOLVER_FAILED;
         health.lastError = sanitize(reason);
         log(feature, "resolver failed: " + health.lastError);
+    }
+
+    public static void installFailed(String feature, Throwable error) {
+        FeatureHealth health = begin(feature);
+        health.status = Status.INSTALL_FAILED;
+        health.lastError = sanitize(error == null ? "unknown install failure" : error.toString());
+        log(feature, "install failed: " + health.lastError);
     }
 
     public static void runtimeFailed(String feature, Throwable error) {
@@ -113,7 +117,7 @@ public final class CompatibilityRuntime {
         return value.length() > 512 ? value.substring(0, 512) : value;
     }
 
-    public enum Status { INSTALLED, RESOLVER_FAILED, RUNTIME_FAILED, CIRCUIT_OPEN, RECOVERING }
+    public enum Status { INSTALLED, RESOLVER_FAILED, INSTALL_FAILED, RUNTIME_FAILED, CIRCUIT_OPEN, RECOVERING }
 
     public static final class FeatureHealthSnapshot {
         public final Status status;
