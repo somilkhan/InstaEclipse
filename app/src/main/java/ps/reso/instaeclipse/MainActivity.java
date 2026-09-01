@@ -1,12 +1,16 @@
 package ps.reso.instaeclipse;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.widget.FrameLayout;
 
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -20,6 +24,9 @@ import ps.reso.instaeclipse.utils.log.Logging;
 import ps.reso.instaeclipse.utils.version.VersionCheckUtility;
 
 public class MainActivity extends AppCompatActivity {
+    private static final int STORAGE_PERMISSION_REQUEST = 4101;
+    private static final String PREFS = "instaeclipse_setup";
+    private static final String KEY_STORAGE_PROMPTED = "storage_permission_prompted";
 
     @SuppressLint("NonConstantResourceId")
     @Override
@@ -29,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Logging.init(this, "instaeclipse_companion.log");
         VersionCheckUtility.checkForUpdates(this);
+        requestLegacyStoragePermissionOnFirstLaunch();
 
         setContentView(R.layout.activity_main);
 
@@ -42,10 +50,6 @@ public class MainActivity extends AppCompatActivity {
         BottomNavigationView bottomNavigation = findViewById(R.id.bottom_navigation);
         FrameLayout fragmentContainer = findViewById(R.id.fragment_container);
 
-        // On targetSdk 35+, edge-to-edge is enforced. The BottomNavigationView absorbs the
-        // system gesture inset via fitsSystemWindows, making its actual height larger than the
-        // fixed 82dp we had in XML. Sync the fragment container's bottom padding to match the
-        // nav bar's real height after each layout pass.
         bottomNavigation.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             int navHeight = v.getHeight();
             if (fragmentContainer.getPaddingBottom() != navHeight) {
@@ -53,7 +57,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Load the HomeFragment by default
         if (savedInstanceState == null) {
             getSupportFragmentManager()
                     .beginTransaction()
@@ -61,10 +64,8 @@ public class MainActivity extends AppCompatActivity {
                     .commit();
         }
 
-        // Select Home by default in the navbar
         bottomNavigation.setSelectedItemId(R.id.nav_home);
 
-        // Handle bottom navigation item clicks
         bottomNavigation.setOnItemSelectedListener(item -> {
             Fragment selectedFragment = null;
 
@@ -86,6 +87,23 @@ public class MainActivity extends AppCompatActivity {
             }
             return true;
         });
+    }
+
+    /**
+     * Only Android 9 and older need the legacy WRITE_EXTERNAL_STORAGE runtime permission for the
+     * Downloads fallback. Android 10+ uses MediaStore/scoped storage and must not show a legacy
+     * storage permission prompt. The prompt is shown once after a fresh installation.
+     */
+    private void requestLegacyStoragePermissionOnFirstLaunch() {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) return;
+        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) return;
+        if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_STORAGE_PROMPTED, false)) return;
+
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_STORAGE_PROMPTED, true).apply();
+        ActivityCompat.requestPermissions(
+                this,
+                new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                STORAGE_PERMISSION_REQUEST);
     }
 
     @Override
