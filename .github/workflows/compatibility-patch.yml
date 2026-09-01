@@ -1,0 +1,70 @@
+name: Apply latest Instagram compatibility fixes
+
+on:
+  push:
+    branches:
+      - 'fix/latest-instagram-runtime-stability'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Apply APK-derived resolver fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def edit(path, fn):
+              p = Path(path)
+              s = p.read_text()
+              n = fn(s)
+              if n == s:
+                  raise SystemExit(f'No change made to {path}; expected anchor missing')
+              p.write_text(n)
+
+          # Instagram 443.0.0.48.82 exposes VideoVersionIntf in api.schemas, not
+          # the obsolete model.mediasize namespace used by the old resolver.
+          edit('app/src/main/java/ps/reso/instaeclipse/mods/media/FeedVideoDownloadHook.java',
+               lambda s: s.replace('com.instagram.model.mediasize.VideoVersionIntf',
+                                   'com.instagram.api.schemas.VideoVersionIntf'))
+
+          # The latest APK has the reel_mentions getter directly on Media.A9I/AJd;
+          # restricting discovery to the removed LiveTreeMediaDict class makes the
+          # otherwise-working mention converter unreachable.
+          edit('app/src/main/java/ps/reso/instaeclipse/mods/misc/StoryMentionHook.java',
+               lambda s: s.replace('declaredClass("com.instagram.feed.media.LiveTreeMediaDict")\n                            .paramCount(0)\n                            .usingEqStrings(List.of("reel_mentions"))',
+                                   'declaredClass("com.instagram.feed.media.Media")\n                            .paramCount(0)\n                            .usingEqStrings(List.of("reel_mentions"))'))
+
+          # Caption is likewise exposed by Media in the current APK. Keep the old
+          # dictionary path as a fallback for older builds, but allow the resolved
+          # getter to be invoked directly on Media when no LiveTree dictionary exists.
+          edit('app/src/main/java/ps/reso/instaeclipse/mods/misc/CaptionCopyContextMenuHook.java',
+               lambda s: s.replace('declaredClass("com.instagram.feed.media.LiveTreeMediaDict")\n                            .paramCount(0)\n                            .usingEqStrings(List.of("caption"))',
+                                   'declaredClass("com.instagram.feed.media.Media")\n                            .paramCount(0)\n                            .usingEqStrings(List.of("caption"))'))
+
+          p = Path('app/src/main/java/ps/reso/instaeclipse/mods/misc/CaptionCopyContextMenuHook.java')
+          s = p.read_text()
+          old = '''            if (dict == null) return null;\n\n            Object captionObj = captionGetter.invoke(dict);'''
+          new = '''            Object target = dict != null ? dict : media;\n            if (target == null) return null;\n\n            Object captionObj = captionGetter.invoke(target);'''
+          if old not in s:
+              raise SystemExit('Caption direct-target anchor missing')
+          p.write_text(s.replace(old, new, 1))
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java gradle/libs.versions.toml
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: align latest Instagram model resolvers'
+          git push
