@@ -1,6 +1,7 @@
 package ps.reso.instaeclipse.mods.media;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
@@ -78,13 +79,50 @@ public class ReelDownloadHook {
     }
 
     private static void installNativeDownloadGateUnlock(DexKitBridge bridge, ClassLoader classLoader) {
-        installGateHook(bridge,classLoader,"ReelDownloadGate_eligible",36313978552585585L,"com.instagram.common.session.UserSession","com.instagram.feed.media.Media",true);
-        installGateHook(bridge,classLoader,"ReelDownloadGate_restricted",36313978552847731L,"com.instagram.common.session.UserSession","boolean",false);
+        installGateHook(bridge,classLoader,"ReelDownloadGate_eligible",36313978552585585L,true);
+        installGateHook(bridge,classLoader,"ReelDownloadGate_restricted",36313978552847731L,false);
     }
-    private static void installGateHook(DexKitBridge bridge, ClassLoader classLoader,String key,long id,String p1,String p2,boolean forced){
-        XC_MethodHook hook=new XC_MethodHook(){@Override protected void beforeHookedMethod(MethodHookParam p){if(FeatureFlags.enableReelDownload)p.setResult(forced);}};
-        if(DexKitCache.isCacheValid()){Method c=DexKitCache.loadMethod(key,classLoader);if(c!=null){XposedBridge.hookMethod(c,hook);return;}}
-        try{var ms=bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().paramTypes(p1,p2).returnType("boolean").usingNumbers(id)));if(ms.isEmpty()){ModuleLog.line("(IE|Reel) ⚠️ Gate method not found for config "+id);return;}Method m=ms.get(0).getMethodInstance(classLoader);m.setAccessible(true);XposedBridge.hookMethod(m,hook);DexKitCache.saveMethod(key,m);FeatureStatusTracker.setHooked("ReelDownload");}catch(Throwable t){ModuleLog.line("(IE|Reel) ❌ gate: "+t);}
+
+    private static void installGateHook(DexKitBridge bridge, ClassLoader classLoader,
+                                        String key, long id, boolean forced) {
+        XC_MethodHook hook=new XC_MethodHook(){
+            @Override protected void beforeHookedMethod(MethodHookParam p){
+                if(FeatureFlags.enableReelDownload) p.setResult(forced);
+            }
+        };
+        if(DexKitCache.isCacheValid()){
+            Method c=DexKitCache.loadMethod(key,classLoader);
+            if(c!=null){
+                XposedBridge.hookMethod(c,hook);
+                ModuleLog.line("(IE|Reel) ✅ gate restored: " + key + " " + c.getName());
+                return;
+            }
+        }
+        try{
+            var ms=bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().returnType("boolean").usingNumbers(id)));
+            if(ms.isEmpty()){
+                ModuleLog.line("(IE|Reel) ⚠️ Gate method not found for config "+id);
+                return;
+            }
+            Method selected=null;
+            for (var md : ms) {
+                try {
+                    Method m=md.getMethodInstance(classLoader);
+                    if (m.getReturnType() == boolean.class) { selected=m; break; }
+                } catch (Throwable ignored) {}
+            }
+            if(selected==null) {
+                ModuleLog.line("(IE|Reel) ⚠️ Gate candidates unusable for config "+id);
+                return;
+            }
+            selected.setAccessible(true);
+            XposedBridge.hookMethod(selected,hook);
+            DexKitCache.saveMethod(key,selected);
+            FeatureStatusTracker.setHooked("ReelDownload");
+            ModuleLog.line("(IE|Reel) ✅ gate hook: " + selected.getDeclaringClass().getName()
+                    + "." + selected.getName() + " " + selected.getReturnType().getName());
+        }catch(Throwable t){ModuleLog.line("(IE|Reel) ❌ gate: "+t);}
     }
 
     private static int findReelCarouselIndex(Object controller) {
@@ -96,7 +134,7 @@ public class ReelDownloadHook {
     }
     static int findCarouselIndexFromView(Context ctx,int size){if(!(ctx instanceof Activity))return -1;try{List<Integer>m=new java.util.ArrayList<>();collectCarouselMatches(((Activity)ctx).getWindow().getDecorView(),size,m);return m.size()==1?m.get(0):-1;}catch(Throwable e){return -1;}}
     private static int adapterCount(Object a){try{return(int)a.getClass().getMethod("getItemCount").invoke(a);}catch(Throwable ignored){}try{return(int)a.getClass().getMethod("getCount").invoke(a);}catch(Throwable ignored){}return -1;}
-    private static void collectCarouselMatches(View v,int size,List<Integer>out){String cn=v.getClass().getName();if(cn.contains("ViewPager"))try{Object a=v.getClass().getMethod("getAdapter").invoke(v);if(a!=null&&adapterCount(a)==size)for(String g:new String[]{"getCurrentItem","getCurrentDataIndex","getCurrentWrappedDataIndex","getCurrentRawDataIndex"})try{int p=(int)v.getClass().getMethod(g).invoke(v);if(p>=0){out.add(p);break;}}catch(NoSuchMethodException ignored){} }catch(Throwable ignored){} if(cn.contains("RecyclerView"))try{Object a=v.getClass().getMethod("getAdapter").invoke(v);if(a!=null&&adapterCount(a)==size){Object lm=v.getClass().getMethod("getLayoutManager").invoke(v);if(lm!=null){try{int o=(int)lm.getClass().getMethod("getOrientation").invoke(lm);if(o!=0)lm=null;}catch(Throwable ignored){}if(lm!=null){Integer p=null;try{int x=(int)lm.getClass().getMethod("findFirstCompletelyVisibleItemPosition").invoke(lm);if(x>=0)p=x;}catch(Throwable ignored){}if(p==null)try{int x=(int)lm.getClass().getMethod("findFirstVisibleItemPosition").invoke(lm);if(x>=0)p=x;}catch(Throwable ignored){}if(p!=null)out.add(p);}}}}catch(Throwable ignored){} if(v instanceof ViewGroup){ViewGroup g=(ViewGroup)v;for(int i=0;i<g.getChildCount();i++)collectCarouselMatches(g.getChildAt(i),size,out);}}
+    private static void collectCarouselMatches(View v,int size,List<Integer>out){String cn=v.getClass().getName();if(cn.contains("ViewPager"))try{Object a=v.getClass().getMethod("getAdapter").invoke(v);if(a!=null&&adapterCount(a)==size)for(String g:new String[]{"getCurrentItem","getCurrentDataIndex","getCurrentWrappedDataIndex","getCurrentRawDataIndex"})try{int p=(int)v.getClass().getMethod(g).invoke(v);if(p>=0){out.add(p);break;}}catch(NoSuchMethodException ignored){} }catch(Throwable ignored){} if(cn.contains("RecyclerView"))try{Object a=v.getClass().getMethod("getAdapter").invoke(v);if(a!=null&&adapterCount(a)==size){Object lm=v.getClass().getMethod("getLayoutManager").invoke(v);if(lm!=null){try{int o=(int)lm.getClass().getMethod("getOrientation").invoke(lm);if(o!=0)lm=null;}catch(Throwable ignored){}if(lm!=null){Integer p=null;try{int x=(int)lm.getClass().getMethod("findFirstCompletelyVisibleItemPosition").invoke(lm);if(x>=0)p=x;}catch(Throwable ignored){}if(p==null)try{int x=(int)lm.getClass().getMethod("findFirstVisibleItemPosition").invoke(lm);if(x>=0)p=x;}catch(Throwable ignored){}if(p!=null)out.add(p);}}}}catch(Throwable ignored){} if(v instanceof ViewGroup){ViewGroup g=(ViewGroup)v;for(int i=0;i<g.getChildCount();i++)collectCarouselMatches(g.getChildAt(i),size);}}
 
     private static void onOptionsBuilt(XC_MethodHook.MethodHookParam p){try{
         Object controller=p.thisObject, media=p.args[0], adder=p.args[1];
@@ -104,18 +142,27 @@ public class ReelDownloadHook {
         if(activityField==null)return;Activity activity=(Activity)activityField.get(controller);if(activity==null)return;
         if(buttonAdderMethod==null)for(Method m:adder.getClass().getDeclaredMethods()){Class<?>[] ps=m.getParameterTypes();if(ps.length==4&&Context.class.isAssignableFrom(ps[0])&&View.OnClickListener.class.isAssignableFrom(ps[1])&&ps[2]==String.class&&ps[3]==int.class){m.setAccessible(true);buttonAdderMethod=m;break;}}
         if(buttonAdderMethod==null)return;int icon=resolveDownloadIcon(activity);final Activity a=activity;final Object mc=media,cc=controller;
-        buttonAdderMethod.invoke(adder,activity,(View.OnClickListener)v->startReelDownload(a,mc,cc),I18n.t(activity,R.string.ig_dl_title),icon);
-        installReelImageOption(adder,a,mc,cc);
+        buttonAdderMethod.invoke(adder,activity,(View.OnClickListener)v->showReelDownloadChooser(a,mc,cc),I18n.t(activity,R.string.ig_dl_title),icon);
     }catch(Throwable t){ModuleLog.line("(IE|Reel) ❌ onOptionsBuilt: "+t);}}
 
-    private static void startReelDownload(Context ctx,Object media,Object controller){
+    private static void showReelDownloadChooser(Activity activity,Object media,Object controller){
+        final String[] options={"Download Video","Download Image"};
+        new AlertDialog.Builder(activity)
+                .setTitle("Reel Download")
+                .setItems(options,(dialog,which)->{
+                    if(which==0) startReelVideoDownload(activity,media,controller);
+                    else startReelImageDownload(activity,media,controller);
+                })
+                .show();
+    }
+
+    private static void startReelVideoDownload(Context ctx,Object media,Object controller){
         String user=FeedVideoDownloadHook.extractUsernameFromMediaObject(media);if(user==null)user="reel";String id="0";try{Object x=media.getClass().getMethod("getId").invoke(media);if(x instanceof String s&&!s.isEmpty())id=s;}catch(Throwable ignored){}
         String video=FeedVideoDownloadHook.bestVideoUrlFromMedia(media);
         if(video!=null){final String fn=FeedVideoDownloadHook.buildFilename(user,"reel",id,true);final String u=video;final String usr=user;Toast.makeText(ctx,I18n.t(ctx,R.string.ig_toast_downloading_reel),Toast.LENGTH_SHORT).show();FeedVideoDownloadHook.executor.submit(()->{try{boolean d=FeedVideoDownloadHook.downloadAndSave(ctx,u,fn,true,usr);if(!d)FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,I18n.t(ctx,R.string.ig_toast_reel_saved),Toast.LENGTH_SHORT).show());}catch(Throwable e){FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,I18n.t(ctx,R.string.ig_toast_reel_failed,e.getMessage()),Toast.LENGTH_SHORT).show());}});return;}
         List<String> urls=FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx,media);if(urls.isEmpty()){Toast.makeText(ctx,I18n.t(ctx,R.string.ig_toast_reel_url_not_found),Toast.LENGTH_SHORT).show();return;}int vi=findCarouselIndexFromView(ctx,urls.size());int idx=vi>=0?vi:findReelCarouselIndex(controller);final String fu=user,fid=id;final int fi=idx;FeedVideoDownloadHook.mainHandler.post(()->FeedVideoDownloadHook.showPostDownloadDialog(ctx,urls,fu,fid,fi));
     }
 
-    private static void installReelImageOption(Object adder,Activity activity,Object media,Object controller){try{final Activity a=activity;final Object m=media,c=controller;buttonAdderMethod.invoke(adder,activity,(View.OnClickListener)v->startReelImageDownload(a,m,c),"Reel as Image",resolveDownloadIcon(activity));ModuleLog.line("(IE|Reel) Reel as Image option installed");}catch(Throwable t){ModuleLog.line("(IE|Reel) Reel as Image unavailable: "+t);}}
     private static void startReelImageDownload(Context ctx,Object media,Object controller){try{String user=FeedVideoDownloadHook.extractUsernameFromMediaObject(media);if(user==null||user.isEmpty())user="reel";String id="0";try{Object x=media.getClass().getMethod("getId").invoke(media);if(x instanceof String s&&!s.isEmpty())id=s;}catch(Throwable ignored){}String image=FeedVideoDownloadHook.imageUrlFromMedia(ctx,media);if(image==null){List<String> urls=FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx,media);for(String u:urls)if(isLikelyImageUrl(u)){image=u;break;}}if(image==null){Toast.makeText(ctx,"Reel image not available",Toast.LENGTH_SHORT).show();return;}final String url=image,fn=FeedVideoDownloadHook.buildFilename(user,"reel_image",id,false),usr=user;Toast.makeText(ctx,"Downloading reel image…",Toast.LENGTH_SHORT).show();FeedVideoDownloadHook.executor.submit(()->{try{boolean d=FeedVideoDownloadHook.downloadAndSave(ctx,url,fn,false,usr);if(!d)FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,"Reel image saved",Toast.LENGTH_SHORT).show());}catch(Throwable e){FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,"Reel image failed: "+e.getMessage(),Toast.LENGTH_SHORT).show());}});}catch(Throwable t){ModuleLog.line("(IE|Reel) Reel image download failed: "+t);}}
     private static boolean isLikelyImageUrl(String url){if(url==null||url.isEmpty())return false;String l=url.toLowerCase(java.util.Locale.ROOT);return l.contains("dst-jpg")||l.contains("dst-png")||l.contains("dst-webp")||l.endsWith(".jpg")||l.contains(".jpg?")||l.endsWith(".jpeg")||l.contains(".jpeg?")||l.endsWith(".png")||l.contains(".png?")||l.endsWith(".webp")||l.contains(".webp?");}
     private static int resolveDownloadIcon(Context ctx){try{Class<?> c=ctx.getClassLoader().loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");for(Object v:(Object[])c.getMethod("values").invoke(null))if(v.toString().contains("DOWNLOAD")){Field f=v.getClass().getField("iconDrawable");return(int)f.get(v);}}catch(Throwable ignored){}return 0;}

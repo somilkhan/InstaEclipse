@@ -5,8 +5,8 @@ import org.luckypray.dexkit.query.FindMethod;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,6 +19,9 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class GhostReplayLimitHook {
 
+    private static final String VISUAL_VIEWER_CLASS =
+            "instagram.features.direct.visual.internal.DirectVisualMessageViewerController";
+
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
         hookUpdateMethod(bridge, classLoader);
         hookParseFromJsonMethod(bridge, classLoader);
@@ -26,8 +29,9 @@ public class GhostReplayLimitHook {
     }
 
     /**
-     * Hooks the DM thread entry update that marks the visual message as seen.
-     * Skipping it keeps the local "seen" state at 0.
+     * Hooks the current visual-message viewer state update. In Instagram 443 the
+     * old pair of strings was split across unrelated methods; the real update
+     * routine contains the visual-message validation string on the viewer controller.
      */
     private void hookUpdateMethod(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook hook = new XC_MethodHook() {
@@ -39,36 +43,67 @@ public class GhostReplayLimitHook {
 
         if (DexKitCache.isCacheValid()) {
             Method cached = DexKitCache.loadMethod("Replays_update", classLoader);
-            if (cached != null) { XposedBridge.hookMethod(cached, hook); return; }
+            if (cached != null) {
+                XposedBridge.hookMethod(cached, hook);
+                ModuleLog.line("[IE] ✅ Ghost Replay – update");
+                FeatureStatusTracker.setHooked("UnlimitedReplays");
+                return;
+            }
         }
 
         try {
             List<MethodData> methods = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create()
-                            .usingStrings("Entry should exist before function call",
-                                    "Visual message is missing from thread entry")));
+                            .declaredClass(VISUAL_VIEWER_CLASS)
+                            .returnType("void")
+                            .usingStrings("Visual message is missing from thread entry")));
 
+            Method resolved = null;
+            MethodData resolvedData = null;
             for (MethodData md : methods) {
                 try {
                     Method m = md.getMethodInstance(classLoader);
                     if (m.getReturnType() != void.class) continue;
-                    DexKitCache.saveMethod("Replays_update", m);
-                    XposedBridge.hookMethod(m, hook);
-                    ModuleLog.line("(IE|Replays) ✅ update hook → " + md.getClassName() + "." + md.getName());
-                    return;
+                    resolved = m;
+                    resolvedData = md;
+                    break;
                 } catch (Throwable ignored) {}
             }
-            ModuleLog.line("(IE|Replays) ❌ update method not found");
+
+            // Keep a narrow generic fallback for minor packaging changes while still
+            // requiring the exact current visual-message marker string.
+            if (resolved == null) {
+                methods = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .returnType("void")
+                                .usingStrings("Visual message is missing from thread entry")));
+                for (MethodData md : methods) {
+                    try {
+                        Method m = md.getMethodInstance(classLoader);
+                        if (!m.getDeclaringClass().getName().contains("VisualMessageViewerController")) continue;
+                        resolved = m;
+                        resolvedData = md;
+                        break;
+                    } catch (Throwable ignored) {}
+                }
+            }
+
+            if (resolved == null) {
+                ModuleLog.line("(IE|Replays) ❌ update method not found in visual message viewer");
+                return;
+            }
+
+            resolved.setAccessible(true);
+            DexKitCache.saveMethod("Replays_update", resolved);
+            XposedBridge.hookMethod(resolved, hook);
+            ModuleLog.line("(IE|Replays) ✅ update hook → "
+                    + resolvedData.getClassName() + "." + resolvedData.getName());
+            FeatureStatusTracker.setHooked("UnlimitedReplays");
         } catch (Throwable t) {
             ModuleLog.line("(IE|Replays) ❌ hookUpdateMethod: " + t);
         }
     }
 
-    /**
-     * Hooks parseFromJson that reads "seen_count" and "tap_models" from the server
-     * response. After it runs, zeroes any small int field on thisObject — those are
-     * the replay counters; IDs and timestamps are longs and won't match.
-     */
     private void hookParseFromJsonMethod(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -100,7 +135,8 @@ public class GhostReplayLimitHook {
                     Method m = md.getMethodInstance(classLoader);
                     XposedBridge.hookMethod(m, hook);
                     hooked.add(m);
-                    ModuleLog.line("(IE|Replays) ✅ parseFromJson hook → " + md.getClassName() + "." + md.getName());
+                    ModuleLog.line("(IE|Replays) ✅ parseFromJson hook → "
+                            + md.getClassName() + "." + md.getName());
                 } catch (Throwable ignored) {}
             }
             if (hooked.isEmpty()) {
@@ -114,11 +150,6 @@ public class GhostReplayLimitHook {
         }
     }
 
-    /**
-     * Hooks the synchronized method (UserSession as first param, 3 params total)
-     * that persists the seen/replay count to local store. Skipping it stops the
-     * counter from being committed.
-     */
     private void hookSyncMethod(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -161,10 +192,6 @@ public class GhostReplayLimitHook {
         }
     }
 
-    /**
-     * Zeroes int fields whose value is in [1, 10] on the given object.
-     * Replay/seen counts are always tiny (1 or 2); IDs and timestamps are longs.
-     */
     private static void zeroReplayCountFields(Object obj) {
         if (obj == null) return;
         try {
@@ -172,9 +199,7 @@ public class GhostReplayLimitHook {
                 if (f.getType() != int.class) continue;
                 f.setAccessible(true);
                 int val = f.getInt(obj);
-                if (val >= 1 && val <= 10) {
-                    f.setInt(obj, 0);
-                }
+                if (val >= 1 && val <= 10) f.setInt(obj, 0);
             }
         } catch (Throwable ignored) {}
     }
