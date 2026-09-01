@@ -33,7 +33,6 @@ public class ReelDownloadHook {
     private static Field cachedInnerField = null;
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
-        installNativeDownloadGateUnlock(bridge, classLoader);
         installReduceOptionsListPatch(bridge, classLoader);
         if (DexKitCache.isCacheValid()) {
             Method cached = DexKitCache.loadMethod("ReelDownload", classLoader);
@@ -78,53 +77,6 @@ public class ReelDownloadHook {
         } catch(Throwable t){ModuleLog.line("(IE|Reel) ❌ installReduceOptionsListPatch: "+t);}
     }
 
-    private static void installNativeDownloadGateUnlock(DexKitBridge bridge, ClassLoader classLoader) {
-        installGateHook(bridge,classLoader,"ReelDownloadGate_eligible",36313978552585585L,true);
-        installGateHook(bridge,classLoader,"ReelDownloadGate_restricted",36313978552847731L,false);
-    }
-
-    private static void installGateHook(DexKitBridge bridge, ClassLoader classLoader,
-                                        String key, long id, boolean forced) {
-        XC_MethodHook hook=new XC_MethodHook(){
-            @Override protected void beforeHookedMethod(MethodHookParam p){
-                if(FeatureFlags.enableReelDownload) p.setResult(forced);
-            }
-        };
-        if(DexKitCache.isCacheValid()){
-            Method c=DexKitCache.loadMethod(key,classLoader);
-            if(c!=null){
-                XposedBridge.hookMethod(c,hook);
-                ModuleLog.line("(IE|Reel) ✅ gate restored: " + key + " " + c.getName());
-                return;
-            }
-        }
-        try{
-            var ms=bridge.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().returnType("boolean").usingNumbers(id)));
-            if(ms.isEmpty()){
-                ModuleLog.line("(IE|Reel) ⚠️ Gate method not found for config "+id);
-                return;
-            }
-            Method selected=null;
-            for (var md : ms) {
-                try {
-                    Method m=md.getMethodInstance(classLoader);
-                    if (m.getReturnType() == boolean.class) { selected=m; break; }
-                } catch (Throwable ignored) {}
-            }
-            if(selected==null) {
-                ModuleLog.line("(IE|Reel) ⚠️ Gate candidates unusable for config "+id);
-                return;
-            }
-            selected.setAccessible(true);
-            XposedBridge.hookMethod(selected,hook);
-            DexKitCache.saveMethod(key,selected);
-            FeatureStatusTracker.setHooked("ReelDownload");
-            ModuleLog.line("(IE|Reel) ✅ gate hook: " + selected.getDeclaringClass().getName()
-                    + "." + selected.getName() + " " + selected.getReturnType().getName());
-        }catch(Throwable t){ModuleLog.line("(IE|Reel) ❌ gate: "+t);}
-    }
-
     private static int findReelCarouselIndex(Object controller) {
         if(controller==null)return 0;
         if(cachedOuterField!=null&&cachedInnerField!=null)try{Object h=cachedOuterField.get(controller);if(h!=null)return cachedInnerField.getInt(h);}catch(Throwable ignored){}
@@ -134,7 +86,7 @@ public class ReelDownloadHook {
     }
     static int findCarouselIndexFromView(Context ctx,int size){if(!(ctx instanceof Activity))return -1;try{List<Integer>m=new java.util.ArrayList<>();collectCarouselMatches(((Activity)ctx).getWindow().getDecorView(),size,m);return m.size()==1?m.get(0):-1;}catch(Throwable e){return -1;}}
     private static int adapterCount(Object a){try{return(int)a.getClass().getMethod("getItemCount").invoke(a);}catch(Throwable ignored){}try{return(int)a.getClass().getMethod("getCount").invoke(a);}catch(Throwable ignored){}return -1;}
-    private static void collectCarouselMatches(View v,int size,List<Integer>out){String cn=v.getClass().getName();if(cn.contains("ViewPager"))try{Object a=v.getClass().getMethod("getAdapter").invoke(v);if(a!=null&&adapterCount(a)==size)for(String g:new String[]{"getCurrentItem","getCurrentDataIndex","getCurrentWrappedDataIndex","getCurrentRawDataIndex"})try{int p=(int)v.getClass().getMethod(g).invoke(v);if(p>=0){out.add(p);break;}}catch(NoSuchMethodException ignored){} }catch(Throwable ignored){} if(cn.contains("RecyclerView"))try{Object a=v.getClass().getMethod("getAdapter").invoke(v);if(a!=null&&adapterCount(a)==size){Object lm=v.getClass().getMethod("getLayoutManager").invoke(v);if(lm!=null){try{int o=(int)lm.getClass().getMethod("getOrientation").invoke(lm);if(o!=0)lm=null;}catch(Throwable ignored){}if(lm!=null){Integer p=null;try{int x=(int)lm.getClass().getMethod("findFirstCompletelyVisibleItemPosition").invoke(lm);if(x>=0)p=x;}catch(Throwable ignored){}if(p==null)try{int x=(int)lm.getClass().getMethod("findFirstVisibleItemPosition").invoke(lm);if(x>=0)p=x;}catch(Throwable ignored){}if(p!=null)out.add(p);}}}}catch(Throwable ignored){} if(v instanceof ViewGroup){ViewGroup g=(ViewGroup)v;for(int i=0;i<g.getChildCount();i++)collectCarouselMatches(g.getChildAt(i),size);}}
+    private static void collectCarouselMatches(View v,int size,List<Integer>out){String cn=v.getClass().getName();if(cn.contains("ViewPager"))try{Object a=v.getClass().getMethod("getAdapter").invoke(v);if(a!=null&&adapterCount(a)==size)for(String g:new String[]{"getCurrentItem","getCurrentDataIndex","getCurrentWrappedDataIndex","getCurrentRawDataIndex"})try{int p=(int)v.getClass().getMethod(g).invoke(v);if(p>=0){out.add(p);break;}}catch(NoSuchMethodException ignored){} }catch(Throwable ignored){} if(cn.contains("RecyclerView"))try{Object a=v.getClass().getMethod("getAdapter").invoke(v);if(a!=null&&adapterCount(a)==size){Object lm=v.getClass().getMethod("getLayoutManager").invoke(v);if(lm!=null){try{int o=(int)lm.getClass().getMethod("getOrientation").invoke(lm);if(o!=0)lm=null;}catch(Throwable ignored){}if(lm!=null){Integer p=null;try{int x=(int)lm.getClass().getMethod("findFirstCompletelyVisibleItemPosition").invoke(lm);if(x>=0)p=x;}catch(Throwable ignored){}if(p==null)try{int x=(int)lm.getClass().getMethod("findFirstVisibleItemPosition").invoke(lm);if(x>=0)p=x;}catch(Throwable ignored){}if(p!=null)out.add(p);}}}}catch(Throwable ignored){} if(v instanceof ViewGroup){ViewGroup g=(ViewGroup)v;for(int i=0;i<g.getChildCount();i++)collectCarouselMatches(g.getChildAt(i),size,out);}}
 
     private static void onOptionsBuilt(XC_MethodHook.MethodHookParam p){try{
         Object controller=p.thisObject, media=p.args[0], adder=p.args[1];
