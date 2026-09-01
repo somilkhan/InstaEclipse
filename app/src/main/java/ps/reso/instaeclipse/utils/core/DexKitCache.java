@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import ps.reso.instaeclipse.utils.log.ModuleLog;
@@ -29,14 +30,15 @@ public final class DexKitCache {
 
     public static synchronized void init(Context context, String igVersion) {
         prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        String version = igVersion == null || igVersion.isEmpty() ? "unknown" : igVersion;
         String stored = prefs.getString(KEY_VER, "");
-        if (stored.equals(igVersion)) {
+        if (stored.equals(version)) {
             cacheValid = true;
-            ModuleLog.line("(DexKitCache) Cache valid for IG " + igVersion);
+            ModuleLog.line("(DexKitCache) Cache valid for IG " + version);
         } else {
             cacheValid = false;
-            prefs.edit().clear().putString(KEY_VER, igVersion).apply();
-            ModuleLog.line("(DexKitCache) Version " + stored + " → " + igVersion + ", cache cleared");
+            prefs.edit().clear().putString(KEY_VER, version).apply();
+            ModuleLog.line("(DexKitCache) Version " + stored + " → " + version + ", cache cleared");
         }
     }
 
@@ -49,13 +51,13 @@ public final class DexKitCache {
         ModuleLog.line("(DexKitCache) Cache manually cleared");
     }
 
-    public static void saveMethod(String key, Method method) {
-        if (prefs == null || method == null) return;
+    public static synchronized void saveMethod(String key, Method method) {
+        if (prefs == null || method == null || key == null || key.isEmpty()) return;
         prefs.edit().putString("m_" + key, encode(method)).apply();
     }
 
     public static Method loadMethod(String key, ClassLoader loader) {
-        if (prefs == null || !cacheValid) return null;
+        if (prefs == null || !cacheValid || key == null || loader == null) return null;
         String encoded = prefs.getString("m_" + key, null);
         return encoded == null ? null : decode(encoded, loader);
     }
@@ -80,26 +82,46 @@ public final class DexKitCache {
         }
     }
 
-    public static void saveMethods(String key, List<Method> methods) {
-        if (prefs == null || methods == null) return;
-        SharedPreferences.Editor editor = prefs.edit();
-        editor.putInt("mc_" + key, methods.size());
-        for (int i = 0; i < methods.size(); i++) {
-            editor.putString("m_" + key + "_" + i, encode(methods.get(i)));
+    /**
+     * Atomically replaces a method-list entry. Old trailing entries are removed
+     * so a shorter replacement can never resurrect stale methods.
+     */
+    public static synchronized void saveMethods(String key, List<Method> methods) {
+        if (prefs == null || key == null || key.isEmpty()) return;
+        List<Method> safe = methods == null ? Collections.emptyList() : methods;
+        String prefix = "m_" + key + "_";
+        int oldCount = prefs.getInt("mc_" + key, 0);
+        SharedPreferences.Editor editor = prefs.edit().putInt("mc_" + key, safe.size());
+        for (int i = 0; i < oldCount; i++) editor.remove(prefix + i);
+        for (int i = 0; i < safe.size(); i++) {
+            Method method = safe.get(i);
+            if (method == null) {
+                editor.clear();
+                cacheValid = false;
+                ModuleLog.line("(DexKitCache) Refused null method-list entry: " + key);
+                return;
+            }
+            editor.putString(prefix + i, encode(method));
         }
         editor.apply();
     }
 
     public static List<Method> loadMethods(String key, ClassLoader loader) {
-        if (prefs == null || !cacheValid) return null;
+        if (prefs == null || !cacheValid || key == null || loader == null) return null;
         int count = prefs.getInt("mc_" + key, -1);
-        if (count < 0) return null;
+        if (count < 0 || count > 256) return null;
         List<Method> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             String encoded = prefs.getString("m_" + key + "_" + i, null);
-            if (encoded == null) return null;
+            if (encoded == null) {
+                invalidateMethods(key);
+                return null;
+            }
             Method method = decode(encoded, loader);
-            if (method == null) return null;
+            if (method == null) {
+                invalidateMethods(key);
+                return null;
+            }
             result.add(method);
         }
         return result;
@@ -125,28 +147,28 @@ public final class DexKitCache {
         }
     }
 
-    public static void invalidateMethod(String key) {
-        if (prefs == null) return;
+    public static synchronized void invalidateMethod(String key) {
+        if (prefs == null || key == null) return;
         prefs.edit().remove("m_" + key).apply();
         ModuleLog.line("(DexKitCache) Invalidated method cache: " + key);
     }
 
-    public static void invalidateMethods(String key) {
-        if (prefs == null) return;
+    public static synchronized void invalidateMethods(String key) {
+        if (prefs == null || key == null) return;
         SharedPreferences.Editor editor = prefs.edit().remove("mc_" + key);
-        int count = prefs.getInt("mc_" + key, 0);
+        int count = Math.min(Math.max(prefs.getInt("mc_" + key, 0), 0), 256);
         for (int i = 0; i < count; i++) editor.remove("m_" + key + "_" + i);
         editor.apply();
         ModuleLog.line("(DexKitCache) Invalidated method-list cache: " + key);
     }
 
-    public static void saveString(String key, String value) {
-        if (prefs == null) return;
+    public static synchronized void saveString(String key, String value) {
+        if (prefs == null || key == null || key.isEmpty()) return;
         prefs.edit().putString("s_" + key, value).apply();
     }
 
     public static String loadString(String key) {
-        if (prefs == null || !cacheValid) return null;
+        if (prefs == null || !cacheValid || key == null) return null;
         return prefs.getString("s_" + key, null);
     }
 
