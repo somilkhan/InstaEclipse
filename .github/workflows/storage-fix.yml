@@ -1,0 +1,38 @@
+name: Finalize Storage Recovery
+on:
+  push:
+    branches: [stability/latest-instagram]
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch storage fallback
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/ps/reso/instaeclipse/mods/media/DownloadSaveService.java')
+          s=p.read_text()
+          old='''            Uri uri = writeViaSaf(tmp, detected.filename, detected.mimeType,\n                    saveUri, username, usernameFolder);\n            return new SavedMedia(uri, detected.filename, detected.mimeType);'''
+          new='''            Uri uri;\n            try {\n                uri = writeViaSaf(tmp, detected.filename, detected.mimeType,\n                        saveUri, username, usernameFolder);\n            } catch (Exception safError) {\n                if (!isSafWriteFailure(safError)) throw safError;\n                ModuleLog.line("(IE|DL|Storage) SAF unavailable; falling back to Downloads: " + safError.getMessage());\n                uri = DownloadStorageFallback.saveToDownloads(this, tmp, detected.filename, detected.mimeType);\n            }\n            return new SavedMedia(uri, detected.filename, detected.mimeType);'''
+          if old not in s: raise SystemExit('single-stream save block not found')
+          s=s.replace(old,new,1)
+          old2='''            Uri uri = writeViaSaf(out, corrected, "video/mp4",\n                    saveUri, username, usernameFolder);\n            return new SavedMedia(uri, corrected, "video/mp4");'''
+          new2='''            Uri uri;\n            try {\n                uri = writeViaSaf(out, corrected, "video/mp4",\n                        saveUri, username, usernameFolder);\n            } catch (Exception safError) {\n                if (!isSafWriteFailure(safError)) throw safError;\n                ModuleLog.line("(IE|DL|Storage) SAF unavailable after merge; falling back to Downloads: " + safError.getMessage());\n                uri = DownloadStorageFallback.saveToDownloads(this, out, corrected, "video/mp4");\n            }\n            return new SavedMedia(uri, corrected, "video/mp4");'''
+          if old2 not in s: raise SystemExit('merged save block not found')
+          s=s.replace(old2,new2,1)
+          marker='''    // ── SAF write ────────────────────────────────────────────────────────────\n'''
+          helper='''    private static boolean isSafWriteFailure(Exception e) {\n        String m = e.getMessage();\n        return m != null && (m.contains("SAF folder not writable")\n                || m.contains("SAF createFile returned null")\n                || m.contains("SAF openOutputStream returned null")\n                || m.contains("Cannot create username sub-folder"));\n    }\n\n'''
+          if 'isSafWriteFailure(Exception e)' not in s: s=s.replace(marker,helper+marker,1)
+          p.write_text(s)
+          PY
+          git add app/src/main/java/ps/reso/instaeclipse/mods/media/DownloadSaveService.java
+          git commit -m 'fix(storage): recover downloads when SAF permission is revoked'
+          git push
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/storage-fix.yml
+          git commit -m 'chore: remove temporary storage workflow'
+          git push
