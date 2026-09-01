@@ -75,9 +75,10 @@ public final class UsernameResolverPatch {
     /**
      * Current Instagram 443 stores the post author directly on Media's Pando model
      * (A3M() -> User, field marker "user"). FeedVideoDownloadHook still has a legacy
-     * dictionary path, so bridge its public username extraction through the verified
-     * Media-level getter. This removes the repeated dict-user hierarchy failure without
-     * disturbing the carousel/media dictionary resolver used by downloads.
+     * dictionary path, so bridge its username extraction through the verified Media-level
+     * getter. The hook class itself belongs to InstaEclipse's classloader, not Instagram's;
+     * resolving it through the Instagram ClassLoader is incorrect and caused the runtime
+     * "class ... FeedVideoDownloadHook not found" warning.
      */
     private static void installMediaUsernameBridge(DexKitBridge bridge, ClassLoader classLoader) {
         if (mediaBridgeInstalled) return;
@@ -85,8 +86,11 @@ public final class UsernameResolverPatch {
             if (mediaBridgeInstalled) return;
             try {
                 Class<?> mediaClass = classLoader.loadClass("com.instagram.feed.media.Media");
-                Class<?> feedClass = classLoader.loadClass("ps.reso.instaeclipse.mods.media.FeedVideoDownloadHook");
-                Method extract = feedClass.getDeclaredMethod("extractUsernameFromMediaObject", Object.class);
+
+                // IMPORTANT: this is our module class, so never resolve it with Instagram's
+                // ClassLoader. The Instagram ClassLoader can only see Instagram's classes.
+                Method extract = FeedVideoDownloadHook.class.getDeclaredMethod(
+                        "extractUsernameFromMediaObject", Object.class);
                 extract.setAccessible(true);
 
                 Method mediaUserGetter = null;
