@@ -149,8 +149,15 @@ public class DownloadSaveService extends Service {
             ModuleLog.line("(IE|DL|Type) requested=" + mimeType + " response=" + responseType
                     + " detected=" + detected.kind + " file=" + detected.filename);
             pushProgress("Saving…", 97, 100, false);
-            Uri uri = writeViaSaf(tmp, detected.filename, detected.mimeType,
-                    saveUri, username, usernameFolder);
+            Uri uri;
+            try {
+                uri = writeViaSaf(tmp, detected.filename, detected.mimeType,
+                        saveUri, username, usernameFolder);
+            } catch (Exception safError) {
+                if (!isSafWriteFailure(safError)) throw safError;
+                ModuleLog.line("(IE|DL|Storage) SAF unavailable; falling back to Downloads: " + safError.getMessage());
+                uri = DownloadStorageFallback.saveToDownloads(this, tmp, detected.filename, detected.mimeType);
+            }
             return new SavedMedia(uri, detected.filename, detected.mimeType);
         } finally {
             //noinspection ResultOfMethodCallIgnored
@@ -193,8 +200,15 @@ public class DownloadSaveService extends Service {
             pushProgress("Saving…", 97, 100, false);
             String corrected = MediaTypeDetector.withCorrectExtension(
                     filename, MediaTypeDetector.Kind.VIDEO);
-            Uri uri = writeViaSaf(out, corrected, "video/mp4",
-                    saveUri, username, usernameFolder);
+            Uri uri;
+            try {
+                uri = writeViaSaf(out, corrected, "video/mp4",
+                        saveUri, username, usernameFolder);
+            } catch (Exception safError) {
+                if (!isSafWriteFailure(safError)) throw safError;
+                ModuleLog.line("(IE|DL|Storage) SAF unavailable after merge; falling back to Downloads: " + safError.getMessage());
+                uri = DownloadStorageFallback.saveToDownloads(this, out, corrected, "video/mp4");
+            }
             return new SavedMedia(uri, corrected, "video/mp4");
         } finally {
             //noinspection ResultOfMethodCallIgnored
@@ -204,6 +218,14 @@ public class DownloadSaveService extends Service {
             //noinspection ResultOfMethodCallIgnored
             out.delete();
         }
+    }
+
+    private static boolean isSafWriteFailure(Exception e) {
+        String m = e.getMessage();
+        return m != null && (m.contains("SAF folder not writable")
+                || m.contains("SAF createFile returned null")
+                || m.contains("SAF openOutputStream returned null")
+                || m.contains("Cannot create username sub-folder"));
     }
 
     // ── SAF write ────────────────────────────────────────────────────────────
