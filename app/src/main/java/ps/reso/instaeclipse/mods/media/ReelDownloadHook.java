@@ -477,6 +477,8 @@ public class ReelDownloadHook {
                     (View.OnClickListener) v -> startReelDownload(actCopy, mediaCopy, controllerCopy),
                     I18n.t(activity, R.string.ig_dl_title), icon);
 
+            installReelImageOption(buttonAdder, actCopy, mediaCopy, controllerCopy);
+
         } catch (Throwable t) {
             ModuleLog.line("(IE|Reel) ❌ onOptionsBuilt: " + t);
         }
@@ -530,6 +532,110 @@ public class ReelDownloadHook {
         final int    finalIndex    = currentIndex;
         FeedVideoDownloadHook.mainHandler.post(() ->
                 FeedVideoDownloadHook.showPostDownloadDialog(ctx, allUrls, finalUsername, finalMediaId, finalIndex));
+    }
+
+    private static void installReelImageOption(Object buttonAdder, Activity activity, Object media, Object controller) {
+        try {
+            final Activity act = activity;
+            final Object mediaCopy = media;
+            final Object controllerCopy = controller;
+            buttonAdderMethod.invoke(buttonAdder, activity,
+                    (View.OnClickListener) v -> startReelImageDownload(act, mediaCopy, controllerCopy),
+                    "Reel as Image", resolveDownloadIcon(activity));
+            ModuleLog.line("(IE|Reel) ✅ Reel as Image option installed");
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|Reel) ⚠️ Reel as Image option unavailable: " + t.getMessage());
+        }
+    }
+
+    private static void startReelImageDownload(Context ctx, Object media, Object controller) {
+        try {
+            String username = FeedVideoDownloadHook.extractUsernameFromMediaObject(media);
+            if (username == null || username.isEmpty()) username = "reel";
+            String mediaId = "0";
+            try {
+                Object id = media.getClass().getMethod("getId").invoke(media);
+                if (id instanceof String s && !s.isEmpty()) mediaId = s;
+            } catch (Throwable ignored) {}
+
+            List<String> urls = FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx, media);
+            java.util.ArrayList<String> imageUrls = new java.util.ArrayList<>();
+            for (String url : urls) if (isLikelyImageUrl(url)) imageUrls.add(url);
+            if (imageUrls.isEmpty()) {
+                String reflected = findImageUrl(media, 4, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
+                if (reflected != null) imageUrls.add(reflected);
+            }
+            if (imageUrls.isEmpty()) {
+                Toast.makeText(ctx, "Reel image not available", Toast.LENGTH_SHORT).show();
+                ModuleLog.line("(IE|Reel) ⚠️ Reel image URL not found");
+                return;
+            }
+
+            int index = 0;
+            if (imageUrls.size() > 1) {
+                int viewIndex = findCarouselIndexFromView(ctx, imageUrls.size());
+                index = viewIndex >= 0 ? viewIndex : findReelCarouselIndex(controller);
+                if (index < 0 || index >= imageUrls.size()) index = 0;
+            }
+            final String url = imageUrls.get(index);
+            final String filename = FeedVideoDownloadHook.buildFilename(username, "reel_image", mediaId, false);
+            final String finalUsername = username;
+            Toast.makeText(ctx, "Downloading reel image…", Toast.LENGTH_SHORT).show();
+            FeedVideoDownloadHook.executor.submit(() -> {
+                try {
+                    boolean delegated = FeedVideoDownloadHook.downloadAndSave(ctx, url, filename, false, finalUsername);
+                    if (!delegated) FeedVideoDownloadHook.mainHandler.post(() -> Toast.makeText(ctx, "Reel image saved", Toast.LENGTH_SHORT).show());
+                } catch (Throwable e) {
+                    FeedVideoDownloadHook.mainHandler.post(() -> Toast.makeText(ctx, "Reel image failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                }
+            });
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|Reel) ❌ Reel image download: " + t);
+            Toast.makeText(ctx, "Reel image failed", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private static boolean isLikelyImageUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        String lower = url.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("dst-jpg") || lower.contains("dst-png") || lower.contains("dst-webp")
+                || lower.endsWith(".jpg") || lower.contains(".jpg?") || lower.endsWith(".jpeg")
+                || lower.contains(".jpeg?") || lower.endsWith(".png") || lower.contains(".png?")
+                || lower.endsWith(".webp") || lower.contains(".webp?");
+    }
+
+    private static String findImageUrl(Object root, int depth, java.util.Set<Object> visited) {
+        if (root == null || depth < 0 || !visited.add(root)) return null;
+        if (root instanceof String s) return isLikelyImageUrl(s) ? s : null;
+        if (root instanceof Iterable<?> it) {
+            if (depth == 0) return null;
+            for (Object v : it) { String r = findImageUrl(v, depth - 1, visited); if (r != null) return r; }
+            return null;
+        }
+        if (root instanceof java.util.Map<?, ?> map) {
+            if (depth == 0) return null;
+            for (Object v : map.values()) { String r = findImageUrl(v, depth - 1, visited); if (r != null) return r; }
+            return null;
+        }
+        Class<?> c = root.getClass();
+        while (c != null && c != Object.class) {
+            for (Field f : c.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                try {
+                    f.setAccessible(true);
+                    Object value = f.get(root);
+                    if (value == null) continue;
+                    String n = f.getName().toLowerCase(java.util.Locale.ROOT);
+                    if (n.contains("image") || n.contains("photo") || n.contains("thumb")
+                            || value instanceof Iterable<?> || value instanceof java.util.Map<?, ?>) {
+                        String r = findImageUrl(value, depth - 1, visited);
+                        if (r != null) return r;
+                    }
+                } catch (Throwable ignored) {}
+            }
+            c = c.getSuperclass();
+        }
+        return null;
     }
 
     /** Reads the icon drawable ID from MediaOption$Option.DOWNLOAD enum value. */
