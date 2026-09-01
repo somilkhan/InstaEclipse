@@ -14,6 +14,7 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -31,10 +32,13 @@ public class ReelDownloadHook {
     private static Field activityField;
     private static Field cachedOuterField = null;
     private static Field cachedInnerField = null;
+    private static final AtomicBoolean OPTIONS_PATCH_INSTALLED = new AtomicBoolean(false);
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
-        // Do NOT add Instagram's native DOWNLOAD option here. It bypasses our chooser and was
-        // the reason tapping Reel Download could immediately start a video download.
+        // Remove Instagram's native DOWNLOAD option first. If it remains visible, tapping it
+        // invokes Instagram's own downloader directly and bypasses our Video/Image chooser.
+        installRemoveNativeDownloadOption(bridge, classLoader);
+
         if (DexKitCache.isCacheValid()) {
             Method cached = DexKitCache.loadMethod("ReelDownload", classLoader);
             if (cached != null) {
@@ -60,6 +64,60 @@ public class ReelDownloadHook {
             XposedBridge.hookMethod(target, new XC_MethodHook() { @Override protected void afterHookedMethod(MethodHookParam p) { if (FeatureFlags.enableReelDownload) onOptionsBuilt(p); } });
             ModuleLog.line("(IE|Reel) ✅ hooked: " + hookMethod.getDeclaringClass().getName() + "." + hookMethod.getName());
         } catch (Throwable t) { ModuleLog.line("(IE|Reel) ❌ install: " + t); }
+    }
+
+    private static void installRemoveNativeDownloadOption(DexKitBridge bridge, ClassLoader classLoader) {
+        if (!OPTIONS_PATCH_INSTALLED.compareAndSet(false, true)) return;
+        try {
+            Class<?> optionClass = classLoader.loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
+            Object download = null;
+            for (Object value : (Object[]) optionClass.getMethod("values").invoke(null)) {
+                if ("DOWNLOAD".equals(value.toString())) { download = value; break; }
+            }
+            if (download == null) return;
+            final Object nativeDownload = download;
+            XC_MethodHook removeHook = new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if (!FeatureFlags.enableReelDownload) return;
+                    try {
+                        Object result = p.getResult();
+                        if (result instanceof List<?>) {
+                            ((List<?>) result).remove(nativeDownload);
+                        }
+                    } catch (Throwable t) {
+                        ModuleLog.line("(IE|Reel) ⚠️ native DOWNLOAD removal failed: " + t.getClass().getSimpleName());
+                    }
+                }
+            };
+
+            if (DexKitCache.isCacheValid()) {
+                Method cached = DexKitCache.loadMethod("ReelOptionsListBuilder", classLoader);
+                if (cached != null) {
+                    XposedBridge.hookMethod(cached, removeHook);
+                    return;
+                }
+            }
+
+            String optionDescriptor = "Lcom/instagram/feed/media/mediaoption/MediaOption$Option;";
+            var methods = bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create()
+                            .returnType("java.util.ArrayList")
+                            .addUsingField(optionDescriptor + "->PLAYBACK_CONTROLS:" + optionDescriptor)
+                            .addUsingField(optionDescriptor + "->UNSAVE:" + optionDescriptor)));
+            if (methods.isEmpty()) {
+                ModuleLog.line("(IE|Reel) ⚠️ native DOWNLOAD option builder not found");
+                OPTIONS_PATCH_INSTALLED.set(false);
+                return;
+            }
+            Method target = methods.get(0).getMethodInstance(classLoader);
+            target.setAccessible(true);
+            XposedBridge.hookMethod(target, removeHook);
+            DexKitCache.saveMethod("ReelOptionsListBuilder", target);
+            ModuleLog.line("(IE|Reel) ✅ native DOWNLOAD option suppressed");
+        } catch (Throwable t) {
+            OPTIONS_PATCH_INSTALLED.set(false);
+            ModuleLog.line("(IE|Reel) ⚠️ native DOWNLOAD suppression unavailable: " + t.getClass().getSimpleName());
+        }
     }
 
     private static int findReelCarouselIndex(Object controller) {
