@@ -105,7 +105,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
                         }
                     });
         } catch (Throwable t) {
-            ModuleLog.line("(InstaEclipse | Startup): ❌ attach hook failed: " + t);
+            ModuleLog.line("(InstaEclipse | Startup): attach hook failed: " + t);
         }
     }
 
@@ -122,7 +122,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
             igVersion = String.valueOf(pi.getLongVersionCode());
             DexKitCache.init(appContext, igVersion);
         } catch (Throwable t) {
-            ModuleLog.line("(DexKitCache) ❌ init failed: " + t.getMessage());
+            ModuleLog.line("(DexKitCache) init failed: " + t.getMessage());
         }
         try {
             Logging.init(appContext, "instaeclipse_module.log");
@@ -143,9 +143,9 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
                 FeatureManager.refreshFeatureStatus();
                 registerSyncReceiver(appContext);
                 installAllFeatures(bridge, classLoader, lpparam);
-                ModuleLog.line("(InstaEclipse | Startup): ✅ asynchronous bootstrap complete for IG " + detectedVersion);
+                ModuleLog.line("(InstaEclipse | Startup): asynchronous bootstrap complete for IG " + detectedVersion);
             } catch (Throwable t) {
-                ModuleLog.line("(InstaEclipse | Startup): ❌ bootstrap failed safely: " + t);
+                ModuleLog.line("(InstaEclipse | Startup): bootstrap failed safely: " + t);
             }
         });
     }
@@ -167,7 +167,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
             m.setAccessible(true);
             m.invoke(new Module(), context);
         } catch (Throwable t) {
-            ModuleLog.line("(InstaEclipse | Sync): ❌ receiver registration failed: " + t.getMessage());
+            ModuleLog.line("(InstaEclipse | Sync): receiver registration failed: " + t.getMessage());
         }
     }
 
@@ -216,14 +216,17 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
     private interface FeatureInstall { void install() throws Throwable; }
 
     private static void run(String name, FeatureInstall install) {
-        if (!CompatibilityRuntime.canRun(name)) return;
+        if (!CompatibilityRuntime.canRun(name)) {
+            ModuleLog.line("(InstaEclipse | " + name + "): skipped while circuit is open");
+            return;
+        }
         CompatibilityRuntime.begin(name);
         try {
             install.install();
             CompatibilityRuntime.installed(name, "feature-installer");
         } catch (Throwable t) {
-            CompatibilityRuntime.resolverFailed(name, t.toString());
-            ModuleLog.line("(InstaEclipse | " + name + "): ❌ isolated failure: " + t);
+            CompatibilityRuntime.installFailed(name, t);
+            ModuleLog.line("(InstaEclipse | " + name + "): isolated install failure: " + t);
         }
     }
 }
