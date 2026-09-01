@@ -1,0 +1,38 @@
+name: Finalize Reel Image
+on:
+  push:
+    branches: [feat/reel-image-final2]
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/ps/reso/instaeclipse/mods/media/ReelDownloadHook.java')
+          s=p.read_text()
+          anchor='''                    (View.OnClickListener) v -> startReelDownload(actCopy, mediaCopy, controllerCopy),\n                    I18n.t(activity, R.string.ig_dl_title), icon);'''
+          if 'installReelImageOption(buttonAdder' not in s:
+              s=s.replace(anchor,anchor+'\n\n            installReelImageOption(buttonAdder, actCopy, mediaCopy, controllerCopy);',1)
+          marker='    /** Reads the icon drawable ID from MediaOption$Option.DOWNLOAD enum value. */'
+          methods='''    private static void installReelImageOption(Object buttonAdder, Activity activity, Object media, Object controller) {\n        try {\n            final Activity act=activity; final Object mediaCopy=media; final Object controllerCopy=controller;\n            buttonAdderMethod.invoke(buttonAdder, activity, (View.OnClickListener) v -> startReelImageDownload(act, mediaCopy, controllerCopy), "Reel as Image", resolveDownloadIcon(activity));\n            ModuleLog.line("(IE|Reel) Reel as Image option installed");\n        } catch (Throwable t) { ModuleLog.line("(IE|Reel) Reel as Image unavailable: "+t); }\n    }\n\n    private static void startReelImageDownload(Context ctx, Object media, Object controller) {\n        try {\n            String username=FeedVideoDownloadHook.extractUsernameFromMediaObject(media); if(username==null||username.isEmpty()) username="reel";\n            String mediaId="0"; try { Object id=media.getClass().getMethod("getId").invoke(media); if(id instanceof String && !((String)id).isEmpty()) mediaId=(String)id; } catch(Throwable ignored) {}\n            List<String> urls=FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx,media);\n            java.util.ArrayList<String> images=new java.util.ArrayList<>(); for(String url:urls) if(isLikelyImageUrl(url)) images.add(url);\n            if(images.isEmpty()){Toast.makeText(ctx,"Reel image not available",Toast.LENGTH_SHORT).show();return;}\n            int index=0; if(images.size()>1){int vi=findCarouselIndexFromView(ctx,images.size()); index=vi>=0?vi:findReelCarouselIndex(controller); if(index<0||index>=images.size()) index=0;}\n            final String url=images.get(index); final String filename=FeedVideoDownloadHook.buildFilename(username,"reel_image",mediaId,false); final String user=username;\n            Toast.makeText(ctx,"Downloading reel image…",Toast.LENGTH_SHORT).show();\n            FeedVideoDownloadHook.executor.submit(()->{try{boolean delegated=FeedVideoDownloadHook.downloadAndSave(ctx,url,filename,false,user); if(!delegated) FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,"Reel image saved",Toast.LENGTH_SHORT).show());}catch(Throwable e){FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,"Reel image failed: "+e.getMessage(),Toast.LENGTH_SHORT).show());}});\n        } catch(Throwable t){ModuleLog.line("(IE|Reel) Reel image download failed: "+t);}\n    }\n\n    private static boolean isLikelyImageUrl(String url){\n        if(url==null||url.isEmpty()) return false; String l=url.toLowerCase(java.util.Locale.ROOT);\n        return l.contains("dst-jpg")||l.contains("dst-png")||l.contains("dst-webp")||l.endsWith(".jpg")||l.contains(".jpg?")||l.endsWith(".jpeg")||l.contains(".jpeg?")||l.endsWith(".png")||l.contains(".png?")||l.endsWith(".webp")||l.contains(".webp?");\n    }\n\n'''
+          if 'private static void installReelImageOption' not in s: s=s.replace(marker,methods+marker,1)
+          p.write_text(s)
+          PY
+          grep -q 'Reel as Image' app/src/main/java/ps/reso/instaeclipse/mods/media/ReelDownloadHook.java
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/ps/reso/instaeclipse/mods/media/ReelDownloadHook.java
+          git commit -m 'feat(reel): add Reel as Image download option'
+          git push
+      - name: Remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/reel-image-finalize.yml
+          git commit -m 'chore: remove temporary reel image workflow'
+          git push
