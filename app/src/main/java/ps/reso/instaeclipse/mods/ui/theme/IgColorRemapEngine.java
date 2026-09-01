@@ -14,9 +14,10 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 /**
  * Two-tier color substitution: an exact/RGB lookup table built from every color the palette
- * actually touches, plus a luminance/hue "fuzzy" classifier for any color that slips through
- * (so arbitrary colors baked into Instagram's own drawables/bitmaps still land on a roughly
- * plausible slot instead of staying unthemed).
+ * actually touches, plus a luminance/hue classifier for direct colors that slip through.
+ * Instagram's Prism/Indigo family is treated as semantic accent rather than as a neutral
+ * surface, preventing dark-purple Prism colors from leaking through an otherwise consistent
+ * custom theme.
  */
 public final class IgColorRemapEngine {
 
@@ -176,7 +177,7 @@ public final class IgColorRemapEngine {
         int b = color & 0xFF;
         double lum = ((r * 0.299d) + (g * 0.587d) + (b * 0.114d)) / 255.0d;
         int target;
-        if (isAccentBlue(r, g, b)) target = fuzzyButton;
+        if (isAccentChromatic(r, g, b)) target = fuzzyButton;
         else if (isDestructiveRed(r, g, b)) target = fuzzyDestructive;
         else if (isLinkBlue(r, g, b)) target = fuzzyLink;
         else if (fuzzyDarkTheme) {
@@ -204,8 +205,22 @@ public final class IgColorRemapEngine {
         fuzzyDarkTheme = ((r * 0.299d) + (g * 0.587d) + (b * 0.114d)) / 255.0d < 0.2d;
     }
 
-    private static boolean isAccentBlue(int r, int g, int b) {
-        return b > 160 && b > r + 30 && b > g + 10;
+    /**
+     * Recognizes Instagram's Prism/Indigo/Violet family as chromatic UI colors. The previous
+     * blue-only classifier missed purple/indigo values, causing those colors to fall into the
+     * dark-theme secondary/surface buckets and visibly leak through the custom palette.
+     */
+    private static boolean isAccentChromatic(int r, int g, int b) {
+        int max = Math.max(r, Math.max(g, b));
+        int min = Math.min(r, Math.min(g, b));
+        int chroma = max - min;
+        if (chroma < 45 || max < 100) return false;
+
+        boolean blue = b > r + 20 && b > g + 8;
+        boolean indigo = b >= r - 10 && b > g + 20;
+        boolean violet = r > g + 18 && b > g + 18 && Math.abs(r - b) < 100;
+        boolean magenta = r > g + 35 && b > g + 25;
+        return blue || indigo || violet || magenta;
     }
 
     private static boolean isLinkBlue(int r, int g, int b) {
