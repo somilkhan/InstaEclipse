@@ -55,6 +55,7 @@ import ps.reso.instaeclipse.mods.misc.StoryMentionHook;
 import ps.reso.instaeclipse.mods.network.IGNetworkInterceptor;
 import ps.reso.instaeclipse.mods.ui.UIHookManager;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeHook;
+import ps.reso.instaeclipse.utils.compat.CompatibilityRuntime;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
@@ -112,15 +113,18 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         final Context appContext = context.getApplicationContext() != null ? context.getApplicationContext() : context;
         final ClassLoader classLoader = lpparam.classLoader;
         final String apkPath = lpparam.appInfo.sourceDir;
+        String igVersion = "unknown";
 
         SettingsManager.init(appContext);
         SettingsManager.loadAllFlags(appContext);
         try {
             android.content.pm.PackageInfo pi = appContext.getPackageManager().getPackageInfo(appContext.getPackageName(), 0);
-            DexKitCache.init(appContext, String.valueOf(pi.getLongVersionCode()));
+            igVersion = String.valueOf(pi.getLongVersionCode());
+            DexKitCache.init(appContext, igVersion);
         } catch (Throwable t) {
             ModuleLog.line("(DexKitCache) ❌ init failed: " + t.getMessage());
         }
+        CompatibilityRuntime.initialize(igVersion);
         try {
             Logging.init(appContext, "instaeclipse_module.log");
         } catch (Throwable t) {
@@ -128,6 +132,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         }
         restoreCompanionDownloadPath();
 
+        final String detectedVersion = igVersion;
         BOOTSTRAP_EXECUTOR.execute(() -> {
             try {
                 Module.hostClassLoader = classLoader;
@@ -139,7 +144,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
                 FeatureManager.refreshFeatureStatus();
                 registerSyncReceiver(appContext);
                 installAllFeatures(bridge, classLoader, lpparam);
-                ModuleLog.line("(InstaEclipse | Startup): ✅ asynchronous bootstrap complete");
+                ModuleLog.line("(InstaEclipse | Startup): ✅ asynchronous bootstrap complete for IG " + detectedVersion);
             } catch (Throwable t) {
                 ModuleLog.line("(InstaEclipse | Startup): ❌ bootstrap failed safely: " + t);
             }
@@ -212,9 +217,12 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
     private interface FeatureInstall { void install() throws Throwable; }
 
     private static void run(String name, FeatureInstall install) {
+        if (!CompatibilityRuntime.begin(name)) return;
         try {
             install.install();
+            CompatibilityRuntime.installed(name, "feature-installer");
         } catch (Throwable t) {
+            CompatibilityRuntime.unavailable(name, t.toString());
             ModuleLog.line("(InstaEclipse | " + name + "): ❌ isolated failure: " + t);
         }
     }
