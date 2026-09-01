@@ -281,18 +281,17 @@ public class LoggingFragment extends Fragment {
                 mainHandler.post(() -> openCreateDocument(result));
             } catch (Throwable t) {
                 if (zip != null) try { zip.delete(); } catch (Throwable ignored) {}
-                mainHandler.post(() -> Toast.makeText(context, getString(R.string.logging_export_failed, String.valueOf(t.getMessage())), Toast.LENGTH_LONG).show());
+                String error = String.valueOf(t.getMessage());
+                mainHandler.post(() -> Toast.makeText(context, getString(R.string.logging_export_failed, error), Toast.LENGTH_LONG).show());
             }
         });
     }
 
     private static void putTextEntry(ZipOutputStream out, String name, String text) throws Exception {
-        ZipEntry entry = new ZipEntry(name);
-        out.putNextEntry(entry);
-        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
-            writer.write(text == null ? "" : text);
-            writer.flush();
-        }
+        out.putNextEntry(new ZipEntry(name));
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
+        writer.write(text == null ? "" : text);
+        writer.flush();
         out.closeEntry();
     }
 
@@ -328,8 +327,9 @@ public class LoggingFragment extends Fragment {
             return;
         }
         Uri destination = data.getData();
+        Context context = requireContext().getApplicationContext();
         loadExecutor.execute(() -> {
-            try (OutputStream out = requireContext().getContentResolver().openOutputStream(destination);
+            try (OutputStream out = context.getContentResolver().openOutputStream(destination);
                  java.io.InputStream in = new java.io.FileInputStream(zip)) {
                 if (out == null) throw new IllegalStateException("Unable to open destination");
                 byte[] buffer = new byte[8192];
@@ -337,9 +337,14 @@ public class LoggingFragment extends Fragment {
                 while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
                 out.flush();
                 try { zip.delete(); } catch (Throwable ignored) {}
-                mainHandler.post(() -> Toast.makeText(requireContext(), R.string.logging_exported, Toast.LENGTH_SHORT).show());
+                mainHandler.post(() -> {
+                    if (isAdded()) Toast.makeText(requireContext(), R.string.logging_exported, Toast.LENGTH_SHORT).show();
+                });
             } catch (Throwable t) {
-                mainHandler.post(() -> Toast.makeText(requireContext(), getString(R.string.logging_export_failed, String.valueOf(t.getMessage())), Toast.LENGTH_LONG).show());
+                String error = String.valueOf(t.getMessage());
+                mainHandler.post(() -> {
+                    if (isAdded()) Toast.makeText(requireContext(), getString(R.string.logging_export_failed, error), Toast.LENGTH_LONG).show();
+                });
             }
         });
     }
