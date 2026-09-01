@@ -2,15 +2,19 @@ package ps.reso.instaeclipse.mods.ui.theme;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsetsController;
+import android.widget.ImageView;
+import android.widget.TextView;
 
 import java.lang.reflect.Field;
 
@@ -25,9 +29,9 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 /**
  * Custom Theme: hooks the standard Android resource/color-resolution APIs (Resources.Theme,
  * Resources, Context, TypedArray) plus Activity/PhoneWindow lifecycle, so a custom palette is
- * substituted everywhere Instagram resolves a themed color. Deliberately limited to stable
- * Android SDK surfaces — Instagram's own Compose/React-Native rendering paths need separate,
- * per-version reverse-engineered hooks and are not covered here.
+ * substituted everywhere Instagram resolves a themed color. Stateful color lists and drawable
+ * tints are handled explicitly so controls such as Instagram's liked-heart state keep their
+ * semantic selected/activated color instead of losing the state tint.
  */
 public class IgThemeHook {
 
@@ -42,6 +46,7 @@ public class IgThemeHook {
             hookGetColor(classLoader);
             hookContextGetColor();
             hookTypedArrayGetColor(classLoader);
+            hookStatefulColors(classLoader);
             hookActivityLifecycle();
             hookPhoneWindowColors(classLoader);
             installed = true;
@@ -199,6 +204,86 @@ public class IgThemeHook {
                 } catch (Throwable ignored) {}
             }
         });
+    }
+
+    /**
+     * ColorStateList is the Android primitive used by stateful icon/text tints. Instagram's
+     * liked-heart is stateful; remapping only getColor()/TypedArray#getColor() is insufficient
+     * because the selected color can live in a ColorStateList returned by resources or applied
+     * directly to an ImageView/Drawable.
+     */
+    private void hookStatefulColors(final ClassLoader cl) {
+        XC_MethodHook resourceListHook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.isBypassing()
+                        || param.getThrowable() != null) return;
+                Object result = param.getResult();
+                if (result instanceof ColorStateList) {
+                    param.setResult(remapColorStateList((ColorStateList) result));
+                }
+            }
+        };
+        try {
+            XposedHelpers.findAndHookMethod(Resources.class, "getColorStateList", int.class,
+                    Resources.Theme.class, resourceListHook);
+        } catch (Throwable ignored) {}
+        try {
+            XposedHelpers.findAndHookMethod(Resources.class, "getColorStateList", int.class,
+                    resourceListHook);
+        } catch (Throwable ignored) {}
+        try {
+            XposedHelpers.findAndHookMethod(Context.class, "getColorStateList", int.class,
+                    new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.isBypassing()
+                                    || param.getThrowable() != null) return;
+                            Object result = param.getResult();
+                            if (result instanceof ColorStateList) {
+                                param.setResult(remapColorStateList((ColorStateList) result));
+                            }
+                        }
+                    });
+        } catch (Throwable ignored) {}
+
+        XC_MethodHook tintHook = new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.isBypassing()
+                        || param.args == null || param.args.length == 0) return;
+                if (param.args[0] instanceof ColorStateList) {
+                    param.args[0] = remapColorStateList((ColorStateList) param.args[0]);
+                }
+            }
+        };
+        try {
+            XposedHelpers.findAndHookMethod(ImageView.class, "setImageTintList", ColorStateList.class, tintHook);
+        } catch (Throwable ignored) {}
+        try {
+            XposedHelpers.findAndHookMethod(TextView.class, "setTextColor", ColorStateList.class, tintHook);
+        } catch (Throwable ignored) {}
+        try {
+            XposedHelpers.findAndHookMethod(Drawable.class, "setTintList", ColorStateList.class, tintHook);
+        } catch (Throwable ignored) {}
+    }
+
+    private static ColorStateList remapColorStateList(ColorStateList source) {
+        if (source == null || IgColorRemapEngine.isBypassing()) return source;
+        try {
+            int[] colors = source.getColors();
+            int[][] states = source.getStates();
+            if (colors == null || states == null || colors.length == 0) return source;
+            int[] remapped = new int[colors.length];
+            boolean changed = false;
+            for (int i = 0; i < colors.length; i++) {
+                remapped[i] = IgColorRemapEngine.remap(colors[i]);
+                changed |= remapped[i] != colors[i];
+            }
+            return changed ? new ColorStateList(states, remapped) : source;
+        } catch (Throwable ignored) {
+            return source;
+        }
     }
 
     private void hookActivityLifecycle() {
