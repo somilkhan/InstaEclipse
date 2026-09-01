@@ -4,21 +4,17 @@ import android.os.SystemClock;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Process-local compatibility supervisor.
- *
- * Features are independently tracked so resolver/runtime failures become
- * diagnosable states rather than silent failures or process-wide failures.
- * This class deliberately contains no Instagram-specific assumptions.
- */
+/** Process-local compatibility supervisor. No Instagram-specific assumptions. */
 public final class CompatibilityRuntime {
     private static final int MAX_CONSECUTIVE_FAILURES = 3;
     private static final long FAILURE_WINDOW_MS = 30_000L;
+    private static final long CIRCUIT_COOLDOWN_MS = 60_000L;
     private static final Map<String, FeatureHealth> FEATURES = new ConcurrentHashMap<>();
 
     private CompatibilityRuntime() {}
@@ -29,9 +25,33 @@ public final class CompatibilityRuntime {
         return health;
     }
 
+    /** Returns false while the feature is in its cooldown period. */
     public static boolean canRun(String feature) {
         FeatureHealth health = FEATURES.get(feature);
-        return health == null || !health.circuitOpen;
+        if (health == null) return true;
+        if (!health.circuitOpen) return true;
+        long now = SystemClock.elapsedRealtime();
+        if (now - health.circuitOpenedMs >= CIRCUIT_COOLDOWN_MS) {
+            health.circuitOpen = false;
+            health.consecutiveFailures.set(0);
+            health.status = Status.RECOVERING;
+            log(feature, "circuit cooldown elapsed; allowing recovery attempt");
+            return true;
+        }
+        return false;
+    }
+
+    /** Execute feature code without allowing a feature exception to escape into Instagram. */
+    public static boolean guard(String feature, Runnable action) {
+        if (action == null || !canRun(feature)) return false;
+        begin(feature);
+        try {
+            action.run();
+            return true;
+        } catch (Throwable t) {
+            runtimeFailed(feature, t);
+            return false;
+        }
     }
 
     public static void installed(String feature, String resolver) {
@@ -40,6 +60,7 @@ public final class CompatibilityRuntime {
         health.circuitOpen = false;
         health.status = Status.INSTALLED;
         health.resolver = resolver == null ? "unknown" : resolver;
+        health.lastError = "";
         log(feature, "installed via " + health.resolver);
     }
 
@@ -53,7 +74,7 @@ public final class CompatibilityRuntime {
     public static void runtimeFailed(String feature, Throwable error) {
         FeatureHealth health = begin(feature);
         long now = SystemClock.elapsedRealtime();
-        if (now - health.firstFailureMs > FAILURE_WINDOW_MS) {
+        if (health.firstFailureMs == 0L || now - health.firstFailureMs > FAILURE_WINDOW_MS) {
             health.firstFailureMs = now;
             health.consecutiveFailures.set(0);
         }
@@ -62,6 +83,7 @@ public final class CompatibilityRuntime {
         health.status = Status.RUNTIME_FAILED;
         if (failures >= MAX_CONSECUTIVE_FAILURES) {
             health.circuitOpen = true;
+            health.circuitOpenedMs = now;
             health.status = Status.CIRCUIT_OPEN;
             log(feature, "circuit opened after " + failures + " runtime failures");
         } else {
@@ -75,7 +97,7 @@ public final class CompatibilityRuntime {
     }
 
     public static Map<String, FeatureHealthSnapshot> snapshot() {
-        Map<String, FeatureHealthSnapshot> result = new java.util.TreeMap<>();
+        Map<String, FeatureHealthSnapshot> result = new TreeMap<>();
         for (Map.Entry<String, FeatureHealth> entry : FEATURES.entrySet()) {
             result.put(entry.getKey(), entry.getValue().snapshot());
         }
@@ -91,7 +113,7 @@ public final class CompatibilityRuntime {
         return value.length() > 512 ? value.substring(0, 512) : value;
     }
 
-    public enum Status { INSTALLED, RESOLVER_FAILED, RUNTIME_FAILED, CIRCUIT_OPEN }
+    public enum Status { INSTALLED, RESOLVER_FAILED, RUNTIME_FAILED, CIRCUIT_OPEN, RECOVERING }
 
     public static final class FeatureHealthSnapshot {
         public final Status status;
@@ -100,6 +122,7 @@ public final class CompatibilityRuntime {
         public final int consecutiveFailures;
         public final boolean circuitOpen;
         public final long lastAttemptMs;
+        public final long circuitOpenedMs;
 
         private FeatureHealthSnapshot(FeatureHealth health) {
             status = health.status;
@@ -108,6 +131,7 @@ public final class CompatibilityRuntime {
             consecutiveFailures = health.consecutiveFailures.get();
             circuitOpen = health.circuitOpen;
             lastAttemptMs = health.lastAttemptMs;
+            circuitOpenedMs = health.circuitOpenedMs;
         }
     }
 
@@ -118,10 +142,9 @@ public final class CompatibilityRuntime {
         private final AtomicInteger consecutiveFailures = new AtomicInteger();
         private volatile boolean circuitOpen;
         private volatile long firstFailureMs;
+        private volatile long circuitOpenedMs;
         private volatile long lastAttemptMs;
 
-        private FeatureHealthSnapshot snapshot() {
-            return new FeatureHealthSnapshot(this);
-        }
+        private FeatureHealthSnapshot snapshot() { return new FeatureHealthSnapshot(this); }
     }
 }
