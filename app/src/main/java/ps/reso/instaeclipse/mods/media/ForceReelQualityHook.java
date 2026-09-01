@@ -6,8 +6,11 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -17,89 +20,64 @@ import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 /**
- * Forces reel/video playback to a specific quality by hooking LiveTreeMediaDict's
- * video_versions getter and collapsing the list of available qualities down to whichever
- * one best matches the desired height — Instagram's player has no other choice left once
- * only one option remains.
- *
- * An earlier attempt at this feature rewrote raw Tigon network response bytes mid-stream,
- * but never actually fed the rewritten bytes back into what Instagram parses (the mutated
- * JSON was built and then only logged, never applied) — so it silently did nothing. This
- * version instead manipulates Instagram's own already-parsed model object, the same
- * approach HideSuggestedFeedItemsHook already uses successfully elsewhere in this codebase.
- *
- * The per-item height field is found without depending on any obfuscated name at all: the
- * concrete video-version class's height accessor calls Pando's getOptionalIntValueByHashCode
- * with a hardcoded hash constant that is simply Java's standard String.hashCode() of the
- * literal string "height" — a value fixed by the JDK spec, not by Instagram's build, so it's
- * computed locally and matched via DexKit rather than guessed from a stale reference.
+ * Forces reel playback to a selected video height by filtering Instagram's already-parsed
+ * video-version list. Discovery deliberately avoids hard-coded obfuscated/concrete Instagram
+ * class names so an APK refactor does not make the feature silently disappear.
  */
-public class ForceReelQualityHook {
+public final class ForceReelQualityHook {
 
-    private static final String DICT_CLASS = "com.instagram.feed.media.LiveTreeMediaDict";
-    private static final String VIDEO_VERSION_CLASS = "com.instagram.model.mediasize.ImmutablePandoVideoVersion";
     private static final int HEIGHT_HASH = "height".hashCode();
-
     private static final String CACHE_GETTER_KEY = "ForceReelQuality_VideoVersionsGetter";
-    private static final String CACHE_HEIGHT_KEY = "ForceReelQuality_HeightGetterName";
+    private static final String CACHE_HEIGHT_KEY = "ForceReelQuality_HeightGetter";
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
         try {
-            Method videoVersionsGetter;
-            String heightGetterName;
+            Method versionsGetter = DexKitCache.isCacheValid()
+                    ? DexKitCache.loadMethod(CACHE_GETTER_KEY, classLoader) : null;
+            Method heightGetter = DexKitCache.isCacheValid()
+                    ? DexKitCache.loadMethod(CACHE_HEIGHT_KEY, classLoader) : null;
 
-            if (DexKitCache.isCacheValid()) {
-                videoVersionsGetter = DexKitCache.loadMethod(CACHE_GETTER_KEY, classLoader);
-                heightGetterName = DexKitCache.loadString(CACHE_HEIGHT_KEY);
-            } else {
-                videoVersionsGetter = null;
-                heightGetterName = null;
+            if (versionsGetter == null || heightGetter == null) {
+                versionsGetter = resolveVideoVersionsGetter(bridge, classLoader);
+                heightGetter = resolveHeightGetter(bridge, classLoader);
             }
 
-            if (videoVersionsGetter == null || heightGetterName == null) {
-                videoVersionsGetter = resolveVideoVersionsGetter(bridge, classLoader);
-                heightGetterName = resolveHeightGetterName(bridge, classLoader);
-
-                if (videoVersionsGetter == null || heightGetterName == null) {
-                    ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ discovery failed");
-                    return;
-                }
-
-                DexKitCache.saveMethod(CACHE_GETTER_KEY, videoVersionsGetter);
-                DexKitCache.saveString(CACHE_HEIGHT_KEY, heightGetterName);
+            if (versionsGetter == null || heightGetter == null) {
+                ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ dynamic discovery failed"
+                        + " versions=" + (versionsGetter != null)
+                        + " height=" + (heightGetter != null));
+                return;
             }
 
-            videoVersionsGetter.setAccessible(true);
-            String finalHeightGetterName = heightGetterName;
+            versionsGetter.setAccessible(true);
+            heightGetter.setAccessible(true);
+            DexKitCache.saveMethod(CACHE_GETTER_KEY, versionsGetter);
+            DexKitCache.saveMethod(CACHE_HEIGHT_KEY, heightGetter);
 
-            XposedBridge.hookMethod(videoVersionsGetter, new XC_MethodHook() {
+            final Method finalHeightGetter = heightGetter;
+            XposedBridge.hookMethod(versionsGetter, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
                     if (FeatureFlags.forceReelQuality <= 0) return;
                     try {
                         Object result = param.getResult();
-                        if (!(result instanceof List)) return;
-                        List<?> versions = (List<?>) result;
-                        if (versions.size() <= 1) return;
+                        if (!(result instanceof List<?> versions) || versions.size() <= 1) return;
 
-                        Object chosen = pickBestQuality(versions, FeatureFlags.forceReelQuality, finalHeightGetterName);
-                        if (chosen != null) {
-                            param.setResult(Collections.singletonList(chosen));
-                        }
+                        Object chosen = pickBestQuality(versions,
+                                FeatureFlags.forceReelQuality, finalHeightGetter);
+                        if (chosen != null) param.setResult(Collections.singletonList(chosen));
                     } catch (Throwable t) {
-                        ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ hook body – " + t);
+                        ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ runtime filtering: " + t);
                     }
                 }
             });
 
-            // Mark hooked as soon as the hook is successfully attached, not only once a reel
-            // with multiple qualities is actually intercepted — the status toast is built
-            // ~1.5s after launch, before any video is guaranteed to have loaded yet.
             FeatureStatusTracker.setHooked("ForceReelQuality");
-            ModuleLog.line("(InstaEclipse | ForceReelQuality): ✅ Hooked " + DICT_CLASS
-                    + " (height=" + heightGetterName + ")");
+            ModuleLog.line("(InstaEclipse | ForceReelQuality): ✅ hooked "
+                    + versionsGetter.getDeclaringClass().getName() + "." + versionsGetter.getName()
+                    + " height=" + heightGetter.getDeclaringClass().getName() + "." + heightGetter.getName());
         } catch (Throwable t) {
-            ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ install – " + t);
+            ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ install: " + t);
         }
     }
 
@@ -107,57 +85,96 @@ public class ForceReelQualityHook {
         try {
             List<MethodData> results = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create()
-                            .declaredClass(DICT_CLASS)
                             .paramCount(0)
                             .usingEqStrings(List.of("video_versions"))));
 
+            Set<String> seen = new HashSet<>();
             for (MethodData md : results) {
                 try {
                     Method m = md.getMethodInstance(classLoader);
-                    if (m.getReturnType() != List.class) continue;
+                    if (m.getParameterCount() != 0 || !List.class.isAssignableFrom(m.getReturnType())) continue;
+                    String key = m.getDeclaringClass().getName() + '#' + m.getName();
+                    if (!seen.add(key)) continue;
+                    m.setAccessible(true);
                     return m;
                 } catch (Throwable ignored) {}
             }
         } catch (Throwable t) {
-            ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ resolveVideoVersionsGetter – " + t);
+            ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ video_versions discovery: " + t);
         }
         return null;
     }
 
-    private static String resolveHeightGetterName(DexKitBridge bridge, ClassLoader classLoader) {
+    private static Method resolveHeightGetter(DexKitBridge bridge, ClassLoader classLoader) {
         try {
             List<MethodData> results = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create()
-                            .declaredClass(VIDEO_VERSION_CLASS)
                             .paramCount(0)
                             .returnType("java.lang.Integer")
                             .usingNumbers(List.of(HEIGHT_HASH))));
 
-            if (!results.isEmpty()) return results.get(0).getName();
+            // Prefer methods declared by a model class that looks like a video-version model.
+            // If Instagram renames/moves that class, the structural fallback still works.
+            List<Method> fallback = new ArrayList<>();
+            for (MethodData md : results) {
+                try {
+                    Method m = md.getMethodInstance(classLoader);
+                    if (m.getParameterCount() != 0 || m.getReturnType() != Integer.class) continue;
+                    String owner = m.getDeclaringClass().getName();
+                    if (owner.contains("VideoVersion") || owner.contains("VideoSize")) {
+                        m.setAccessible(true);
+                        return m;
+                    }
+                    fallback.add(m);
+                } catch (Throwable ignored) {}
+            }
+            if (!fallback.isEmpty()) {
+                fallback.get(0).setAccessible(true);
+                return fallback.get(0);
+            }
         } catch (Throwable t) {
-            ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ resolveHeightGetterName – " + t);
+            ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ height discovery: " + t);
         }
         return null;
     }
 
-    private static Object pickBestQuality(List<?> items, int desired, String heightGetterName) {
+    private static Object pickBestQuality(List<?> versions, int desired, Method heightGetter) {
         Object best = null;
         int bestDelta = Integer.MAX_VALUE;
         int bestHeight = -1;
-        for (Object item : items) {
+
+        for (Object item : versions) {
             if (item == null) continue;
             try {
-                Method m = item.getClass().getMethod(heightGetterName);
-                Object hObj = m.invoke(item);
-                if (!(hObj instanceof Integer)) continue;
-                int h = (Integer) hObj;
-                if (h <= 0) continue;
+                Method getter = heightGetter;
+                if (!getter.getDeclaringClass().isInstance(item)) {
+                    // The DexKit result may be declared on a shared parent/interface. Try
+                    // the same signature on the runtime class before discarding the version.
+                    try {
+                        getter = item.getClass().getMethod(heightGetter.getName());
+                        getter.setAccessible(true);
+                    } catch (Throwable ignored) {
+                        continue;
+                    }
+                }
+
+                Object rawHeight = getter.invoke(item);
+                if (!(rawHeight instanceof Integer)) continue;
+                int height = (Integer) rawHeight;
+                if (height <= 0) continue;
 
                 if (desired == Integer.MAX_VALUE) {
-                    if (h > bestHeight) { bestHeight = h; best = item; }
+                    if (height > bestHeight) {
+                        bestHeight = height;
+                        best = item;
+                    }
                 } else {
-                    int delta = Math.abs(h - desired);
-                    if (delta < bestDelta) { bestDelta = delta; best = item; }
+                    int delta = Math.abs(height - desired);
+                    if (delta < bestDelta || (delta == bestDelta && height > bestHeight)) {
+                        bestDelta = delta;
+                        bestHeight = height;
+                        best = item;
+                    }
                 }
             } catch (Throwable ignored) {}
         }

@@ -78,7 +78,9 @@ public final class ThemePresets {
         if (index >= 0 && index < PRESET_NAMES.length) return PRESET_NAMES[index];
         if (context != null) {
             try {
-                Context moduleContext = context.createPackageContext(CommonUtils.MY_PACKAGE_NAME, 2);
+                Context moduleContext = context.createPackageContext(
+                        CommonUtils.MY_PACKAGE_NAME,
+                        Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
                 String[] names = moduleContext.getResources().getStringArray(R.array.theme_preset_names);
                 if (index >= 0 && index < names.length) return names[index];
             } catch (Throwable ignored) {}
