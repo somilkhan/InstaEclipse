@@ -35,7 +35,8 @@ import ps.reso.instaeclipse.utils.log.Logging;
 
 public class LoggingFragment extends Fragment {
     private static final long INSTAGRAM_REPLY_TIMEOUT_MS = 4000;
-    private static final int MAX_DISPLAY_CHARS = 100000;
+    // TextView rendering is intentionally kept small. Full logs remain available to Copy/Export.
+    private static final int MAX_DISPLAY_CHARS = 40000;
     private TextView contentView;
     private TextView lineCountView;
     private Runnable pendingTimeout;
@@ -188,8 +189,9 @@ public class LoggingFragment extends Fragment {
         fullLogs = text == null ? "" : text;
         String display = fullLogs;
         if (display.length() > MAX_DISPLAY_CHARS) {
-            display = display.substring(0, MAX_DISPLAY_CHARS)
-                    + "\n\n[Display truncated — full logs are retained for Copy/Export]";
+            // Show the newest entries; older entries are still preserved in fullLogs for Copy/Export.
+            display = "[Showing latest logs — full logs are retained for Copy/Export]\n\n"
+                    + display.substring(display.length() - MAX_DISPLAY_CHARS);
         }
         contentView.setText(display);
         if (lineCountView == null) return;
