@@ -1,0 +1,49 @@
+name: Apply reel image patch
+
+on:
+  push:
+    branches: [feat/reel-image-download]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Patch source
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/ps/reso/instaeclipse/mods/media/ReelDownloadHook.java')
+          s = p.read_text()
+          marker = '''            buttonAdderMethod.invoke(buttonAdder, activity,\n                    (View.OnClickListener) v -> startReelDownload(actCopy, mediaCopy, controllerCopy),\n                    I18n.t(activity, R.string.ig_dl_title), icon);\n'''
+          if 'installReelImageOption(buttonAdder' not in s:
+              if marker not in s:
+                  raise SystemExit('insertion marker not found')
+              s = s.replace(marker, marker + '\n            installReelImageOption(buttonAdder, actCopy, mediaCopy, controllerCopy);\n', 1)
+          marker2 = '''    /** Reads the icon drawable ID from MediaOption$Option.DOWNLOAD enum value. */\n'''
+          helpers = '''    private static void installReelImageOption(Object buttonAdder, Activity activity, Object media, Object controller) {\n        try {\n            final Activity act = activity;\n            final Object mediaCopy = media;\n            final Object controllerCopy = controller;\n            buttonAdderMethod.invoke(buttonAdder, activity,\n                    (View.OnClickListener) v -> startReelImageDownload(act, mediaCopy, controllerCopy),\n                    \"Reel as Image\", resolveDownloadIcon(activity));\n            ModuleLog.line(\"(IE|Reel) ✅ Reel as Image option installed\");\n        } catch (Throwable t) {\n            ModuleLog.line(\"(IE|Reel) ⚠️ Reel as Image option unavailable: \" + t.getMessage());\n        }\n    }\n\n    private static void startReelImageDownload(Context ctx, Object media, Object controller) {\n        try {\n            String username = FeedVideoDownloadHook.extractUsernameFromMediaObject(media);\n            if (username == null || username.isEmpty()) username = \"reel\";\n            String mediaId = \"0\";\n            try {\n                Object id = media.getClass().getMethod(\"getId\").invoke(media);\n                if (id instanceof String s && !s.isEmpty()) mediaId = s;\n            } catch (Throwable ignored) {}\n\n            List<String> urls = FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx, media);\n            java.util.ArrayList<String> imageUrls = new java.util.ArrayList<>();\n            for (String url : urls) if (isLikelyImageUrl(url)) imageUrls.add(url);\n            if (imageUrls.isEmpty()) {\n                String reflected = findImageUrl(media, 4, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));\n                if (reflected != null) imageUrls.add(reflected);\n            }\n            if (imageUrls.isEmpty()) {\n                Toast.makeText(ctx, \"Reel image not available\", Toast.LENGTH_SHORT).show();\n                ModuleLog.line(\"(IE|Reel) ⚠️ Reel image URL not found\");\n                return;\n            }\n\n            int index = 0;\n            if (imageUrls.size() > 1) {\n                int viewIndex = findCarouselIndexFromView(ctx, imageUrls.size());\n                index = viewIndex >= 0 ? viewIndex : findReelCarouselIndex(controller);\n                if (index < 0 || index >= imageUrls.size()) index = 0;\n            }\n            final String url = imageUrls.get(index);\n            final String filename = FeedVideoDownloadHook.buildFilename(username, \"reel_image\", mediaId, false);\n            final String finalUsername = username;\n            Toast.makeText(ctx, \"Downloading reel image…\", Toast.LENGTH_SHORT).show();\n            FeedVideoDownloadHook.executor.submit(() -> {\n                try {\n                    boolean delegated = FeedVideoDownloadHook.downloadAndSave(ctx, url, filename, false, finalUsername);\n                    if (!delegated) FeedVideoDownloadHook.mainHandler.post(() -> Toast.makeText(ctx, \"Reel image saved\", Toast.LENGTH_SHORT).show());\n                } catch (Throwable e) {\n                    FeedVideoDownloadHook.mainHandler.post(() -> Toast.makeText(ctx, \"Reel image failed: \" + e.getMessage(), Toast.LENGTH_SHORT).show());\n                }\n            });\n        } catch (Throwable t) {\n            ModuleLog.line(\"(IE|Reel) ❌ Reel image download: \" + t);\n            Toast.makeText(ctx, \"Reel image failed\", Toast.LENGTH_SHORT).show();\n        }\n    }\n\n    private static boolean isLikelyImageUrl(String url) {\n        if (url == null || url.isEmpty()) return false;\n        String lower = url.toLowerCase(java.util.Locale.ROOT);\n        return lower.contains(\"dst-jpg\") || lower.contains(\"dst-png\") || lower.contains(\"dst-webp\")\n                || lower.endsWith(\".jpg\") || lower.contains(\".jpg?\") || lower.endsWith(\".jpeg\")\n                || lower.contains(\".jpeg?\") || lower.endsWith(\".png\") || lower.contains(\".png?\")\n                || lower.endsWith(\".webp\") || lower.contains(\".webp?\");\n    }\n\n    private static String findImageUrl(Object root, int depth, java.util.Set<Object> visited) {\n        if (root == null || depth < 0 || !visited.add(root)) return null;\n        if (root instanceof String s) return isLikelyImageUrl(s) ? s : null;\n        if (root instanceof Iterable<?> it) {\n            if (depth == 0) return null;\n            for (Object v : it) { String r = findImageUrl(v, depth - 1, visited); if (r != null) return r; }\n            return null;\n        }\n        if (root instanceof java.util.Map<?, ?> map) {\n            if (depth == 0) return null;\n            for (Object v : map.values()) { String r = findImageUrl(v, depth - 1, visited); if (r != null) return r; }\n            return null;\n        }\n        Class<?> c = root.getClass();\n        while (c != null && c != Object.class) {\n            for (Field f : c.getDeclaredFields()) {\n                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;\n                try {\n                    f.setAccessible(true);\n                    Object value = f.get(root);\n                    if (value == null) continue;\n                    String n = f.getName().toLowerCase(java.util.Locale.ROOT);\n                    if (n.contains(\"image\") || n.contains(\"photo\") || n.contains(\"thumb\")\n                            || value instanceof Iterable<?> || value instanceof java.util.Map<?, ?>) {\n                        String r = findImageUrl(value, depth - 1, visited);\n                        if (r != null) return r;\n                    }\n                } catch (Throwable ignored) {}\n            }\n            c = c.getSuperclass();\n        }\n        return null;\n    }\n\n'''
+          if 'private static void installReelImageOption' not in s:
+              if marker2 not in s: raise SystemExit('helper marker not found')
+              s = s.replace(marker2, helpers + marker2, 1)
+          p.write_text(s)
+          PY
+
+      - name: Compile
+        run: ./gradlew :app:compileDebugJavaWithJavac --no-daemon
+
+      - name: Commit patch and remove temporary workflows
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/ps/reso/instaeclipse/mods/media/ReelDownloadHook.java
+          git rm -f .github/workflows/patch-reel-image.yml .github/workflows/apply-reel-image.yml
+          git commit -m 'feat: add reel as image download option'
+          git push
