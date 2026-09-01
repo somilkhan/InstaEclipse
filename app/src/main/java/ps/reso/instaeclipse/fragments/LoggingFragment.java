@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -55,7 +56,7 @@ public class LoggingFragment extends Fragment {
     };
 
     @Nullable @Override public View onCreateView(@NonNull LayoutInflater inflater,@Nullable ViewGroup container,@Nullable Bundle savedInstanceState){return inflater.inflate(R.layout.fragment_logging,container,false);}
-    @Override public void onViewCreated(@NonNull View view,@Nullable Bundle state){super.onViewCreated(view,state);contentView=view.findViewById(R.id.logging_content);lineCountView=view.findViewById(R.id.logging_line_count);view.findViewById(R.id.logging_copy).setOnClickListener(v->copyLogs());view.findViewById(R.id.logging_export).setOnClickListener(v->exportLogs());view.findViewById(R.id.logging_clear).setOnClickListener(v->clearLogs());}
+    @Override public void onViewCreated(@NonNull View view,@Nullable Bundle state){super.onViewCreated(view,state);contentView=view.findViewById(R.id.logging_content);lineCountView=view.findViewById(R.id.logging_line_count);TextView export=view.findViewById(R.id.logging_export);export.setText("Export ZIP");export.setContentDescription("Export logs as ZIP");export.setOnClickListener(v->exportLogs());view.findViewById(R.id.logging_copy).setOnClickListener(v->copyLogs());view.findViewById(R.id.logging_clear).setOnClickListener(v->clearLogs());}
     @Override public void onResume(){super.onResume();loadLogs();}
     @Override public void onStart(){super.onStart();IntentFilter f=new IntentFilter(CommonUtils.ACTION_LOGS_REPLY);if(Build.VERSION.SDK_INT>=33)requireContext().registerReceiver(logReplyReceiver,f,Context.RECEIVER_EXPORTED);else ContextCompat.registerReceiver(requireContext(),logReplyReceiver,f,ContextCompat.RECEIVER_EXPORTED);}
     @Override public void onStop(){super.onStop();cancelInstagramTimeout();try{requireContext().unregisterReceiver(logReplyReceiver);}catch(Throwable ignored){}}
@@ -74,5 +75,5 @@ public class LoggingFragment extends Fragment {
     private static String findInstagramPackage(Context ctx){PackageManager pm=ctx.getPackageManager();for(String pkg:CommonUtils.SUPPORTED_PACKAGES)try{pm.getPackageInfo(pkg,0);return pkg;}catch(PackageManager.NameNotFoundException ignored){}return null;}
     private void clearLogs(){Context ctx=getContext();if(ctx==null)return;String pkg=findInstagramPackage(ctx);if(pkg!=null){Intent clear=new Intent(CommonUtils.ACTION_CLEAR_LOGS);clear.setPackage(pkg);ctx.sendBroadcast(clear);}Logging.clear();loadLogs();}
     private void copyLogs(){if(contentView==null)return;String text=contentView.getText().toString();if(text.isEmpty()||getString(R.string.logging_placeholder).contentEquals(text)){Toast.makeText(requireContext(),R.string.logging_empty_reply,Toast.LENGTH_SHORT).show();return;}ClipboardManager cb=(ClipboardManager)requireContext().getSystemService(Context.CLIPBOARD_SERVICE);if(cb==null)return;cb.setPrimaryClip(ClipData.newPlainText("logs",text));Toast.makeText(requireContext(),R.string.logging_copied,Toast.LENGTH_SHORT).show();}
-    private void exportLogs(){if(contentView==null)return;String text=contentView.getText().toString();if(text.isEmpty()||getString(R.string.logging_placeholder).contentEquals(text)){Toast.makeText(requireContext(),R.string.logging_empty_reply,Toast.LENGTH_SHORT).show();return;}loadExecutor.execute(()->{try{Uri uri=LogZipExporter.export(requireContext(),text);mainHandler.post(()->{try{LogZipExporter.share(requireContext(),uri);}catch(Throwable t){Toast.makeText(requireContext(),"ZIP export failed: "+t.getMessage(),Toast.LENGTH_LONG).show();}});}catch(Throwable t){mainHandler.post(()->Toast.makeText(requireContext(),"ZIP export failed: "+t.getMessage(),Toast.LENGTH_LONG).show());}});}
+    private void exportLogs(){if(contentView==null)return;String text=contentView.getText().toString();if(text.isEmpty()||getString(R.string.logging_placeholder).contentEquals(text)){Toast.makeText(requireContext(),R.string.logging_empty_reply,Toast.LENGTH_SHORT).show();return;}Context ctx=requireContext();loadExecutor.execute(()->{try{Uri uri=LogZipExporter.export(ctx,text);mainHandler.post(()->{try{LogZipExporter.share(ctx,uri);}catch(Throwable t){Toast.makeText(ctx,"ZIP export failed: "+t.getMessage(),Toast.LENGTH_LONG).show();}});}catch(Throwable t){mainHandler.post(()->Toast.makeText(ctx,"ZIP export failed: "+t.getMessage(),Toast.LENGTH_LONG).show());}});}
 }
