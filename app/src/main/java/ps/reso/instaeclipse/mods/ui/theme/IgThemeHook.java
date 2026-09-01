@@ -7,6 +7,7 @@ import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.TypedValue;
@@ -291,6 +292,19 @@ public class IgThemeHook {
             });
         } catch (Throwable ignored) {}
         try {
+            XposedHelpers.findAndHookMethod(View.class, "setBackgroundResource", int.class, new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.shouldSkipRemap(param.thisObject)) return;
+                    int resId = (Integer) param.args[0];
+                    Integer override = IgThemeEngine.colorForResource(resId);
+                    if (override != null) {
+                        param.setResult(null);
+                        ((View) param.thisObject).setBackgroundColor(override);
+                    }
+                }
+            });
+        } catch (Throwable ignored) {}
+        try {
             XposedHelpers.findAndHookMethod(TextView.class, "setTextColor", int.class, new XC_MethodHook() {
                 @Override protected void beforeHookedMethod(MethodHookParam param) {
                     if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.isBypassing()) return;
@@ -300,6 +314,14 @@ public class IgThemeHook {
         } catch (Throwable ignored) {}
         try {
             XposedHelpers.findAndHookMethod(Drawable.class, "setTint", int.class, new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.isBypassing()) return;
+                    param.args[0] = IgColorRemapEngine.remap((Integer) param.args[0]);
+                }
+            });
+        } catch (Throwable ignored) {}
+        try {
+            XposedHelpers.findAndHookMethod(GradientDrawable.class, "setColor", int.class, new XC_MethodHook() {
                 @Override protected void beforeHookedMethod(MethodHookParam param) {
                     if (!FeatureFlags.customThemeEnabled || IgColorRemapEngine.isBypassing()) return;
                     param.args[0] = IgColorRemapEngine.remap((Integer) param.args[0]);
