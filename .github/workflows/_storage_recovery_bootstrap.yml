@@ -1,0 +1,46 @@
+name: Temporary storage recovery bootstrap
+on:
+  push:
+    branches: [stability/latest-instagram]
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stability/latest-instagram
+      - name: Apply SAF recovery
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/ps/reso/instaeclipse/mods/media/DownloadSaveService.java')
+          s=p.read_text()
+          old='''            Uri uri = writeViaSaf(tmp, detected.filename, detected.mimeType,\n                    saveUri, username, usernameFolder);\n            return new SavedMedia(uri, detected.filename, detected.mimeType);'''
+          new='''            Uri uri;\n            try {\n                uri = writeViaSaf(tmp, detected.filename, detected.mimeType,\n                        saveUri, username, usernameFolder);\n            } catch (Exception safError) {\n                if (!isSafWriteFailure(safError)) throw safError;\n                ModuleLog.line("(IE|DL|Storage) SAF unavailable; falling back to Downloads: " + safError.getMessage());\n                uri = DownloadStorageFallback.saveToDownloads(this, tmp, detected.filename, detected.mimeType);\n            }\n            return new SavedMedia(uri, detected.filename, detected.mimeType);'''
+          if old not in s: raise SystemExit('single-stream block missing')
+          s=s.replace(old,new,1)
+          old2='''            Uri uri = writeViaSaf(out, corrected, "video/mp4",\n                    saveUri, username, usernameFolder);\n            return new SavedMedia(uri, corrected, "video/mp4");'''
+          new2='''            Uri uri;\n            try {\n                uri = writeViaSaf(out, corrected, "video/mp4",\n                        saveUri, username, usernameFolder);\n            } catch (Exception safError) {\n                if (!isSafWriteFailure(safError)) throw safError;\n                ModuleLog.line("(IE|DL|Storage) SAF unavailable after merge; falling back to Downloads: " + safError.getMessage());\n                uri = DownloadStorageFallback.saveToDownloads(this, out, corrected, "video/mp4");\n            }\n            return new SavedMedia(uri, corrected, "video/mp4");'''
+          if old2 not in s: raise SystemExit('merged block missing')
+          s=s.replace(old2,new2,1)
+          marker='''    // ── SAF write ────────────────────────────────────────────────────────────\n'''
+          helper='''    private static boolean isSafWriteFailure(Exception e) {\n        String m=e.getMessage();\n        return m != null && (m.contains("SAF folder not writable") || m.contains("SAF createFile returned null") || m.contains("SAF openOutputStream returned null") || m.contains("Cannot create username sub-folder"));\n    }\n\n'''
+          if 'isSafWriteFailure(Exception e)' not in s: s=s.replace(marker,helper+marker,1)
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/ps/reso/instaeclipse/mods/media/DownloadSaveService.java
+          git commit -m 'fix(storage): recover downloads when SAF permission is revoked'
+          git push origin HEAD:stability/latest-instagram
+      - name: Remove bootstrap from main
+        run: |
+          git fetch origin main
+          git checkout main
+          git rm .github/workflows/_storage_recovery_bootstrap.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore: remove temporary storage recovery bootstrap'
+          git push origin HEAD:main
