@@ -31,14 +31,32 @@ final class MediaTypeDetector {
 
     static Result resolve(File file, String responseContentType, String requestedMime,
                           String requestedFilename) throws IOException {
+        if (file == null || !file.isFile() || file.length() <= 0) {
+            throw new IOException("Downloaded media payload is empty");
+        }
+
+        String responseType = normalizeContentType(responseContentType);
         Kind kind = sniff(file);
-        if (kind == Kind.UNKNOWN) kind = fromContentType(responseContentType);
-        if (kind == Kind.UNKNOWN) kind = fromContentType(requestedMime);
+        if (kind == Kind.UNKNOWN) kind = fromContentType(responseType);
+
+        // Never turn an error/HTML response into a video merely because the original
+        // request expected video. CDN/auth failures commonly return text/html or JSON.
+        if (kind == Kind.UNKNOWN && isNonMediaResponse(responseType)) {
+            throw new IOException("Downloaded payload is not media: " + responseType);
+        }
+
+        // The requested MIME is only a fallback when the server did not provide a
+        // meaningful type. File signatures and the actual response always win.
+        if (kind == Kind.UNKNOWN && isGenericOrMissing(responseType)) {
+            kind = fromContentType(requestedMime);
+        }
 
         String mime = kind == Kind.VIDEO ? "video/mp4"
                 : kind == Kind.IMAGE ? "image/jpeg"
                 : normalizeContentType(requestedMime);
-        if (mime == null || mime.isEmpty()) mime = "application/octet-stream";
+        if (mime == null || mime.isEmpty() || isNonMediaResponse(mime)) {
+            mime = "application/octet-stream";
+        }
         return new Result(kind, mime, withCorrectExtension(requestedFilename, kind));
     }
 
@@ -111,7 +129,31 @@ final class MediaTypeDetector {
             }
             return Kind.VIDEO;
         }
+
+        // WebM/Matroska and FLV are video containers. They are uncommon for Instagram,
+        // but recognizing them prevents a valid media response from being renamed as .jpg.
+        if (length >= 4 && u(header[0]) == 0x1a && u(header[1]) == 0x45
+                && u(header[2]) == 0xdf && u(header[3]) == 0xa3) {
+            return Kind.VIDEO;
+        }
+        if (length >= 3 && header[0] == 'F' && header[1] == 'L' && header[2] == 'V') {
+            return Kind.VIDEO;
+        }
         return Kind.UNKNOWN;
+    }
+
+    private static boolean isGenericOrMissing(String contentType) {
+        return contentType == null
+                || contentType.equals("application/octet-stream")
+                || contentType.equals("binary/octet-stream");
+    }
+
+    private static boolean isNonMediaResponse(String contentType) {
+        return contentType != null
+                && (contentType.startsWith("text/")
+                || contentType.startsWith("application/json")
+                || contentType.startsWith("application/xml")
+                || contentType.startsWith("application/xhtml"));
     }
 
     private static String normalizeContentType(String contentType) {
