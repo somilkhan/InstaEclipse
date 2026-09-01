@@ -33,37 +33,68 @@ public class ReelDownloadHook {
     private static Field cachedOuterField = null;
     private static Field cachedInnerField = null;
     private static final AtomicBoolean OPTIONS_PATCH_INSTALLED = new AtomicBoolean(false);
+    private static final AtomicBoolean BUTTON_ADDER_PATCH_INSTALLED = new AtomicBoolean(false);
+    private static final ThreadLocal<Boolean> ADDING_MODULE_BUTTON = new ThreadLocal<>();
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
-        // Remove Instagram's native DOWNLOAD option first. If it remains visible, tapping it
-        // invokes Instagram's own downloader directly and bypasses our Video/Image chooser.
+        // Keep the list-level patch as a compatibility fallback, but also intercept the
+        // final button insertion point below. Instagram 443 can still expose its native
+        // Download action through a path that bypasses the option list.
         installRemoveNativeDownloadOption(bridge, classLoader);
 
         if (DexKitCache.isCacheValid()) {
             Method cached = DexKitCache.loadMethod("ReelDownload", classLoader);
             if (cached != null) {
-                controllerClass = cached.getDeclaringClass(); hookMethod = cached; cached.setAccessible(true);
+                controllerClass = cached.getDeclaringClass();
+                hookMethod = cached;
+                cached.setAccessible(true);
                 FeatureStatusTracker.setHooked("ReelDownload");
-                XposedBridge.hookMethod(cached, new XC_MethodHook() { @Override protected void afterHookedMethod(MethodHookParam p) { if (FeatureFlags.enableReelDownload) onOptionsBuilt(p); } });
+                XposedBridge.hookMethod(cached, new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam p) {
+                        if (FeatureFlags.enableReelDownload) onOptionsBuilt(p);
+                    }
+                });
                 ModuleLog.line("(IE|Reel) ✅ hooked: " + hookMethod.getDeclaringClass().getName() + "." + hookMethod.getName());
                 return;
             }
         }
         try {
-            var methods = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create().usingStrings("ClipsOrganicMediaItemViewMoreOptionsController")));
-            if (methods.isEmpty()) { ModuleLog.line("(IE|Reel) ❌ ClipsOrganicMediaItemViewMoreOptionsController not found"); return; }
+            var methods = bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().usingStrings("ClipsOrganicMediaItemViewMoreOptionsController")));
+            if (methods.isEmpty()) {
+                ModuleLog.line("(IE|Reel) ❌ ClipsOrganicMediaItemViewMoreOptionsController not found");
+                return;
+            }
             controllerClass = methods.get(0).getMethodInstance(classLoader).getDeclaringClass();
             Method target = null;
             for (Method m : controllerClass.getDeclaredMethods()) {
                 if (m.getReturnType() != void.class) continue;
                 Class<?>[] params = m.getParameterTypes();
-                if (params.length >= 2 && params[0].getName().equals("com.instagram.feed.media.Media") && !params[1].isPrimitive() && params[1] != String.class) { target = m; break; }
+                if (params.length >= 2
+                        && params[0].getName().equals("com.instagram.feed.media.Media")
+                        && !params[1].isPrimitive()
+                        && params[1] != String.class) {
+                    target = m;
+                    break;
+                }
             }
-            if (target == null) { ModuleLog.line("(IE|Reel) ❌ hook method (Media, ButtonAdder)V not found"); return; }
-            target.setAccessible(true); hookMethod = target; DexKitCache.saveMethod("ReelDownload", target); FeatureStatusTracker.setHooked("ReelDownload");
-            XposedBridge.hookMethod(target, new XC_MethodHook() { @Override protected void afterHookedMethod(MethodHookParam p) { if (FeatureFlags.enableReelDownload) onOptionsBuilt(p); } });
+            if (target == null) {
+                ModuleLog.line("(IE|Reel) ❌ hook method (Media, ButtonAdder)V not found");
+                return;
+            }
+            target.setAccessible(true);
+            hookMethod = target;
+            DexKitCache.saveMethod("ReelDownload", target);
+            FeatureStatusTracker.setHooked("ReelDownload");
+            XposedBridge.hookMethod(target, new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam p) {
+                    if (FeatureFlags.enableReelDownload) onOptionsBuilt(p);
+                }
+            });
             ModuleLog.line("(IE|Reel) ✅ hooked: " + hookMethod.getDeclaringClass().getName() + "." + hookMethod.getName());
-        } catch (Throwable t) { ModuleLog.line("(IE|Reel) ❌ install: " + t); }
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|Reel) ❌ install: " + t);
+        }
     }
 
     private static void installRemoveNativeDownloadOption(DexKitBridge bridge, ClassLoader classLoader) {
@@ -72,7 +103,10 @@ public class ReelDownloadHook {
             Class<?> optionClass = classLoader.loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
             Object download = null;
             for (Object value : (Object[]) optionClass.getMethod("values").invoke(null)) {
-                if ("DOWNLOAD".equals(value.toString())) { download = value; break; }
+                if ("DOWNLOAD".equals(value.toString())) {
+                    download = value;
+                    break;
+                }
             }
             if (download == null) return;
             final Object nativeDownload = download;
@@ -120,6 +154,56 @@ public class ReelDownloadHook {
         }
     }
 
+    private static void installNativeDownloadButtonGuard(Object adder) {
+        if (adder == null || BUTTON_ADDER_PATCH_INSTALLED.get()) return;
+        Method candidate = null;
+        for (Method m : adder.getClass().getDeclaredMethods()) {
+            Class<?>[] ps = m.getParameterTypes();
+            if (ps.length == 4
+                    && Context.class.isAssignableFrom(ps[0])
+                    && View.OnClickListener.class.isAssignableFrom(ps[1])
+                    && ps[2] == String.class
+                    && ps[3] == int.class) {
+                candidate = m;
+                break;
+            }
+        }
+        if (candidate == null) return;
+        try {
+            candidate.setAccessible(true);
+            buttonAdderMethod = candidate;
+            if (!BUTTON_ADDER_PATCH_INSTALLED.compareAndSet(false, true)) return;
+            XposedBridge.hookMethod(candidate, new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam p) {
+                    if (Boolean.TRUE.equals(ADDING_MODULE_BUTTON.get())) return;
+                    if (!FeatureFlags.enableReelDownload || p.args == null || p.args.length < 3) return;
+                    Object labelArg = p.args[2];
+                    if (!(labelArg instanceof String)) return;
+                    String label = ((String) labelArg).trim();
+                    if (isNativeDownloadLabel(label)) {
+                        ModuleLog.line("(IE|Reel) ✅ intercepted native Download button");
+                        p.setResult(null);
+                    }
+                }
+            });
+            ModuleLog.line("(IE|Reel) ✅ native Download button guard hooked: "
+                    + candidate.getDeclaringClass().getName() + "." + candidate.getName());
+        } catch (Throwable t) {
+            BUTTON_ADDER_PATCH_INSTALLED.set(false);
+            ModuleLog.line("(IE|Reel) ⚠️ native Download button guard unavailable: "
+                    + t.getClass().getSimpleName());
+        }
+    }
+
+    private static boolean isNativeDownloadLabel(String label) {
+        if (label == null || label.isEmpty()) return false;
+        String normalized = label.toLowerCase(java.util.Locale.ROOT).replace("_", " ").trim();
+        return normalized.equals("download")
+                || normalized.equals("download reel")
+                || normalized.equals("download video")
+                || normalized.startsWith("download ");
+    }
+
     private static int findReelCarouselIndex(Object controller) {
         if(controller==null)return 0;
         if(cachedOuterField!=null&&cachedInnerField!=null)try{Object h=cachedOuterField.get(controller);if(h!=null)return cachedInnerField.getInt(h);}catch(Throwable ignored){}
@@ -133,11 +217,18 @@ public class ReelDownloadHook {
 
     private static void onOptionsBuilt(XC_MethodHook.MethodHookParam p){try{
         Object controller=p.thisObject, media=p.args[0], adder=p.args[1];
+        if (adder == null) return;
+        installNativeDownloadButtonGuard(adder);
         if(activityField==null)for(Field f:controller.getClass().getDeclaredFields())if(Activity.class.isAssignableFrom(f.getType())){f.setAccessible(true);activityField=f;break;}
         if(activityField==null)return;Activity activity=(Activity)activityField.get(controller);if(activity==null)return;
         if(buttonAdderMethod==null)for(Method m:adder.getClass().getDeclaredMethods()){Class<?>[] ps=m.getParameterTypes();if(ps.length==4&&Context.class.isAssignableFrom(ps[0])&&View.OnClickListener.class.isAssignableFrom(ps[1])&&ps[2]==String.class&&ps[3]==int.class){m.setAccessible(true);buttonAdderMethod=m;break;}}
         if(buttonAdderMethod==null)return;int icon=resolveDownloadIcon(activity);final Activity a=activity;final Object mc=media,cc=controller;
-        buttonAdderMethod.invoke(adder,activity,(View.OnClickListener)v->showReelDownloadChooser(a,mc,cc),I18n.t(activity,R.string.ig_dl_title),icon);
+        try {
+            ADDING_MODULE_BUTTON.set(Boolean.TRUE);
+            buttonAdderMethod.invoke(adder,activity,(View.OnClickListener)v->showReelDownloadChooser(a,mc,cc),I18n.t(activity,R.string.ig_dl_title),icon);
+        } finally {
+            ADDING_MODULE_BUTTON.remove();
+        }
     }catch(Throwable t){ModuleLog.line("(IE|Reel) ❌ onOptionsBuilt: "+t);}}
 
     private static void showReelDownloadChooser(Activity activity,Object media,Object controller){
