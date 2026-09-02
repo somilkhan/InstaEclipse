@@ -5,30 +5,31 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:background="@color/black">
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fitsSystemWindows="true"
-        app:elevation="0dp"
-        android:background="@android:color/transparent">
+        android:background="@android:color/transparent"
+        android:elevation="0dp"
+        app:elevation="0dp">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/top_app_bar"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorSurface">
+            android:layout_height="72dp"
+            android:background="@android:color/transparent"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp">
 
             <ImageView
                 android:id="@+id/toolbar_title_image"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
                 android:layout_gravity="start|center_vertical"
-                android:src="@drawable/ic_logo"
                 android:contentDescription="App Logo"
-                android:paddingEnd="7dp"
-                android:adjustViewBounds="true"
+                android:paddingEnd="6dp"
+                android:src="@drawable/ic_logo"
                 android:scaleType="fitCenter"
                 app:tint="?attr/colorPrimary" />
 
@@ -39,41 +40,51 @@
                 android:layout_gravity="start|center_vertical"
                 android:text="@string/app_name"
                 android:textAppearance="?attr/textAppearanceTitleLarge"
-                android:textStyle="bold"
-                android:textColor="?attr/colorOnSurface" />
+                android:textColor="?attr/colorOnSurface"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/toolbar_version"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="end|center_vertical"
-                android:layout_marginEnd="4dp"
+                android:alpha="0.65"
+                android:paddingEnd="2dp"
                 android:text="@string/version"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                android:paddingEnd="16dp"
                 tools:ignore="RtlSymmetry" />
         </com.google.android.material.appbar.MaterialToolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Fragment container: direct FrameLayout so fragments with RecyclerViews scroll correctly.
-         paddingBottom reserves space so the bottom nav never covers content in Home/Help. -->
     <FrameLayout
         android:id="@+id/fragment_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        android:paddingBottom="82dp"
-        android:clipToPadding="false" />
+        android:clipToPadding="false"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="96dp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="64dp"
         android:layout_gravity="bottom"
-        android:fitsSystemWindows="true"
-        app:menu="@menu/bottom_navigation_menu"
-        app:labelVisibilityMode="labeled"
-        android:background="?attr/colorSurfaceContainer" />
+        android:layout_marginStart="14dp"
+        android:layout_marginEnd="14dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/bg_navigation_dock"
+        android:elevation="10dp"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        app:itemIconSize="24dp"
+        app:itemIconTint="@color/navigation_item_colors"
+        app:itemTextColor="@color/navigation_item_colors"
+        app:itemPaddingTop="5dp"
+        app:itemPaddingBottom="5dp"
+        app:labelVisibilityMode="selected"
+        app:menu="@menu/bottom_navigation_menu" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
