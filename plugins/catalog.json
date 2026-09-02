@@ -11,8 +11,8 @@
       "max_core_api": 1,
       "min_instagram_version": "384000000",
       "max_instagram_version": "385999999",
-      "download_url": "https://github.com/somilkhan/InstaEclipse/releases/latest/download/instaeclipse-pfp-1.0.0.apk",
-      "sha256_url": "https://github.com/somilkhan/InstaEclipse/releases/latest/download/SHA256SUMS-release.txt"
+      "download_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin-1.0.0/instaeclipse-pfp-1.0.0.apk",
+      "sha256_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin-1.0.0/SHA256SUMS-release.txt"
     }
   ]
 }
