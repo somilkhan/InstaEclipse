@@ -52,7 +52,7 @@ jobs:
           echo "PLUGIN_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "PLUGIN_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
 
-      - name: Load plugin definition
+      - name: Load canonical plugin definition
         shell: bash
         run: |
           set -euo pipefail
@@ -66,7 +66,8 @@ jobs:
           if missing: raise SystemExit(f"Missing manifest fields: {', '.join(missing)}")
           if d['id'] != os.environ['PLUGIN_ID']: raise SystemExit('Manifest id does not match release id')
           if d['schema'] != 1: raise SystemExit('Unsupported plugin schema')
-          if not str(d['module']).strip(): raise SystemExit('Manifest module is empty')
+          module = str(d['module']).strip()
+          if not module or module.startswith(':') or '/' in module: raise SystemExit('Invalid Gradle module')
           PY
           echo "PLUGIN_MANIFEST=$MANIFEST" >> "$GITHUB_ENV"
           echo "PLUGIN_MODULE=$(python3 -c 'import json,os; print(json.load(open(os.environ["PLUGIN_MANIFEST"]))["module"])')" >> "$GITHUB_ENV"
@@ -81,10 +82,14 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Materialize release version
+      - name: Materialize plugin version into build manifest
         shell: bash
         run: |
-          python3 - "$PLUGIN_MANIFEST" <<'PY'
+          set -euo pipefail
+          TARGET="$PLUGIN_MODULE/src/main/assets/plugin.json"
+          mkdir -p "$(dirname "$TARGET")"
+          cp "$PLUGIN_MANIFEST" "$TARGET"
+          python3 - "$TARGET" <<'PY'
           import json, pathlib, sys, os
           p = pathlib.Path(sys.argv[1]); d = json.loads(p.read_text()); d['version'] = os.environ['PLUGIN_VERSION']; p.write_text(json.dumps(d, indent=2) + '\n')
           PY
@@ -145,8 +150,7 @@ jobs:
           path = pathlib.Path('plugins/catalog.json')
           catalog = json.loads(path.read_text()) if path.exists() else {'schema': 1, 'core_api': 1, 'plugins': []}
           entries = [p for p in catalog.get('plugins', []) if p.get('id') != manifest['id']]
-          public = {k: v for k, v in manifest.items() if k not in {'schema', 'entrypoint', 'module'}}
-          public['id'] = manifest['id']
+          public = {k: v for k, v in manifest.items() if k not in {'schema','entrypoint','module'}}
           entries.append(public)
           entries.sort(key=lambda p: p['id'])
           catalog['plugins'] = entries
