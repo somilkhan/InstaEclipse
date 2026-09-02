@@ -28,7 +28,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        WindowCompat.enableEdgeToEdge(getWindow());
+        // Android 15+ enforces edge-to-edge for targetSdk 35; this keeps the same
+        // layout behavior on older Android releases without relying on a newer
+        // WindowCompat API than the project's AndroidX Core version provides.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         super.onCreate(savedInstanceState);
         Logging.init(this, "instaeclipse_companion.log");
         VersionCheckUtility.checkForUpdates(this);
