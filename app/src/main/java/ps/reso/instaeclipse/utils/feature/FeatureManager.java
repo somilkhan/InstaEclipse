@@ -1,10 +1,37 @@
 package ps.reso.instaeclipse.utils.feature;
 
+import android.app.Application;
+import android.content.pm.PackageInfo;
+
+import java.util.List;
+
+import de.robv.android.xposed.AndroidAppHelper;
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.utils.core.CommonUtils;
+import ps.reso.instaeclipse.utils.plugin.PluginManager;
 
 public class FeatureManager {
 
+    /**
+     * The plugin runtime lives inside the injected Instagram process. FeatureManager is
+     * called immediately after Application.attach(), so this is the earliest reliable
+     * common execution point without changing the existing Xposed hook ordering.
+     */
+    private static void bootstrapPluginsIfInjected() {
+        try {
+            Application application = AndroidAppHelper.currentApplication();
+            if (application == null || !CommonUtils.SUPPORTED_PACKAGES.contains(application.getPackageName())) return;
+            PackageInfo info = application.getPackageManager().getPackageInfo(application.getPackageName(), 0);
+            PluginManager.bootstrap(application, application.getClassLoader(),
+                    String.valueOf(info.getLongVersionCode()));
+        } catch (Throwable ignored) {
+            // Plugin failures must never prevent existing built-in features from loading.
+        }
+    }
+
     public static void refreshFeatureStatus() {
+        bootstrapPluginsIfInjected();
+
         // Developer Options
         if (FeatureFlags.isDevEnabled) {
             FeatureStatusTracker.setEnabled("DevOptions", R.string.ig_dialog_section_dev_options);
