@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+def releaseStoreFile = project.findProperty('pluginReleaseStoreFile')
+def releaseStorePassword = project.findProperty('pluginReleaseStorePassword')
+def releaseKeyAlias = project.findProperty('pluginReleaseKeyAlias')
+def releaseKeyPassword = project.findProperty('pluginReleaseKeyPassword')
+
 android {
     namespace 'ps.reso.instaeclipse.plugins.pfp'
     compileSdk 35
@@ -8,8 +13,27 @@ android {
         applicationId 'ps.reso.instaeclipse.plugins.pfp'
         minSdk 28
         targetSdk 35
-        versionCode 1
+        versionCode 10000
         versionName '1.0.0'
+    }
+
+    signingConfigs {
+        if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
+                signingConfig signingConfigs.release
+            }
+        }
     }
 
     compileOptions {
