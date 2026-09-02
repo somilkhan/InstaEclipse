@@ -41,7 +41,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 2
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -62,26 +62,17 @@ jobs:
           test "${#manifests[@]}" -gt 0
           python3 - "${manifests[@]}" <<'PY'
           import json, pathlib, sys, re
-          required = [
-              'schema', 'id', 'name', 'description', 'version',
-              'min_core_api', 'max_core_api', 'entrypoint', 'packageName',
-              'min_instagram_version', 'max_instagram_version', 'module'
-          ]
+          required = ['schema','id','name','description','version','min_core_api','max_core_api','entrypoint','packageName','min_instagram_version','max_instagram_version','module']
           for raw in sys.argv[1:]:
               path = pathlib.Path(raw)
               data = json.loads(path.read_text())
               missing = [key for key in required if key not in data]
-              if missing:
-                  raise SystemExit(f'{path}: missing {", ".join(missing)}')
-              if data['schema'] != 1:
-                  raise SystemExit(f'{path}: unsupported schema')
-              if not isinstance(data['version'], str) or not re.fullmatch(r'\d+\.\d+\.\d+', data['version']):
-                  raise SystemExit(f'{path}: invalid semver version')
+              if missing: raise SystemExit(f'{path}: missing {", ".join(missing)}')
+              if data['schema'] != 1: raise SystemExit(f'{path}: unsupported schema')
+              if not isinstance(data['version'], str) or not re.fullmatch(r'\d+\.\d+\.\d+', data['version']): raise SystemExit(f'{path}: invalid semver version')
               module = str(data['module']).strip()
-              if not module or module.startswith(':') or '/' in module:
-                  raise SystemExit(f'{path}: invalid Gradle module {module!r}')
-              if not pathlib.Path(module).is_dir():
-                  raise SystemExit(f'{path}: Gradle module directory not found: {module}')
+              if not module or module.startswith(':') or '/' in module: raise SystemExit(f'{path}: invalid Gradle module {module!r}')
+              if not pathlib.Path(module).is_dir(): raise SystemExit(f'{path}: Gradle module directory not found: {module}')
           PY
 
       - name: Materialize plugin manifests for CI builds
@@ -92,8 +83,7 @@ jobs:
           import json, pathlib
           for manifest_path in pathlib.Path('plugins').glob('*/plugin.json'):
               manifest = json.loads(manifest_path.read_text())
-              module = manifest['module']
-              target = pathlib.Path(module) / 'src/main/assets/plugin.json'
+              target = pathlib.Path(manifest['module']) / 'src/main/assets/plugin.json'
               target.parent.mkdir(parents=True, exist_ok=True)
               target.write_text(json.dumps(manifest, indent=2) + '\n')
           PY
@@ -117,13 +107,13 @@ jobs:
 
   release-plugin:
     name: Release plugin pack
-    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/plugin/') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/plugin/') || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
       - name: Resolve plugin id and version
         shell: bash
@@ -132,11 +122,37 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             ID="${{ inputs.plugin }}"
             VERSION="${{ inputs.version }}"
-          else
+          elif [[ "${GITHUB_REF}" == refs/tags/plugin/* ]]; then
             REF="${GITHUB_REF_NAME}"
             [[ "$REF" =~ ^plugin/([^/]+)/v([0-9]+\.[0-9]+\.[0-9]+)$ ]] || { echo "Tag must be plugin/<id>/v<major>.<minor>.<patch>"; exit 1; }
             ID="${BASH_REMATCH[1]}"
             VERSION="${BASH_REMATCH[2]}"
+          else
+            python3 <<'PY'
+            import json, pathlib
+            manifests = sorted(pathlib.Path('plugins').glob('*/plugin.json'))
+            catalog_path = pathlib.Path('plugins/catalog.json')
+            catalog = json.loads(catalog_path.read_text()) if catalog_path.exists() else {'plugins': []}
+            current = {p.get('id'): p.get('version') for p in catalog.get('plugins', [])}
+            candidates = []
+            for path in manifests:
+                d = json.loads(path.read_text())
+                if d.get('remote') is True and d.get('version') != current.get(d.get('id')):
+                    candidates.append((d.get('id'), d.get('version')))
+            if not candidates:
+                print('No plugin manifest version is ahead of the live catalog; skipping release.')
+                pathlib.Path('/tmp/no-release').touch()
+            else:
+                candidates.sort()
+                pathlib.Path('/tmp/plugin-id').write_text(candidates[0][0])
+                pathlib.Path('/tmp/plugin-version').write_text(candidates[0][1])
+            PY
+            if [[ -f /tmp/no-release ]]; then
+              echo "SKIP_RELEASE=true" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            ID="$(cat /tmp/plugin-id)"
+            VERSION="$(cat /tmp/plugin-version)"
           fi
           [[ "$ID" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || { echo "Invalid plugin id"; exit 1; }
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version must be semver X.Y.Z"; exit 1; }
@@ -147,6 +163,7 @@ jobs:
           echo "PLUGIN_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
 
       - name: Load canonical plugin definition
+        if: ${{ env.SKIP_RELEASE != 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -154,18 +171,14 @@ jobs:
           [[ -f "$MANIFEST" ]] || { echo "Missing $MANIFEST"; exit 1; }
           python3 - "$MANIFEST" <<'PY'
           import json, pathlib, re, sys, os
-          p = pathlib.Path(sys.argv[1])
-          d = json.loads(p.read_text())
-          required = [
-              'schema', 'id', 'name', 'description', 'version',
-              'min_core_api', 'max_core_api', 'entrypoint', 'packageName',
-              'min_instagram_version', 'max_instagram_version', 'module'
-          ]
+          p = pathlib.Path(sys.argv[1]); d = json.loads(p.read_text())
+          required = ['schema','id','name','description','version','min_core_api','max_core_api','entrypoint','packageName','min_instagram_version','max_instagram_version','module']
           missing = [x for x in required if x not in d]
           if missing: raise SystemExit(f'Missing manifest fields: {", ".join(missing)}')
           if d['id'] != os.environ['PLUGIN_ID']: raise SystemExit('Manifest id does not match release id')
           if d['schema'] != 1: raise SystemExit('Unsupported plugin schema')
           if not re.fullmatch(r'\d+\.\d+\.\d+', d['version']): raise SystemExit('Manifest version must be semver')
+          if d['version'] != os.environ['PLUGIN_VERSION']: raise SystemExit('Manifest version does not match release version')
           module = str(d['module']).strip()
           if not module or module.startswith(':') or '/' in module: raise SystemExit('Invalid Gradle module')
           if not pathlib.Path(module).is_dir(): raise SystemExit(f'Gradle module directory not found: {module}')
@@ -175,6 +188,7 @@ jobs:
           cp "$MANIFEST" /tmp/plugin-release-manifest.json
 
       - name: Set up JDK 17
+        if: ${{ env.SKIP_RELEASE != 'true' }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -182,24 +196,20 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
+        if: ${{ env.SKIP_RELEASE != 'true' }}
         uses: android-actions/setup-android@v3
 
       - name: Materialize release version into plugin manifest
+        if: ${{ env.SKIP_RELEASE != 'true' }}
         shell: bash
         run: |
           set -euo pipefail
           TARGET="$PLUGIN_MODULE/src/main/assets/plugin.json"
           mkdir -p "$(dirname "$TARGET")"
           cp "$PLUGIN_MANIFEST" "$TARGET"
-          python3 - "$TARGET" <<'PY'
-          import json, pathlib, sys, os
-          p = pathlib.Path(sys.argv[1])
-          d = json.loads(p.read_text())
-          d['version'] = os.environ['PLUGIN_VERSION']
-          p.write_text(json.dumps(d, indent=2) + '\n')
-          PY
 
       - name: Build debug artifact
+        if: ${{ env.SKIP_RELEASE != 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -207,6 +217,7 @@ jobs:
           ./gradlew ":$PLUGIN_MODULE:assembleDebug" -PpluginVersion="$PLUGIN_VERSION" -PpluginVersionCode="$PLUGIN_VERSION_CODE" --no-daemon
 
       - name: Build and sign release artifact
+        if: ${{ env.SKIP_RELEASE != 'true' }}
         env:
           KEYSTORE_B64: ${{ secrets.INSTAECLIPSE_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.INSTAECLIPSE_KEYSTORE_PASSWORD }}
@@ -218,8 +229,7 @@ jobs:
           test -n "$KEYSTORE_B64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo 'Release signing secrets are required'; exit 1; }
           echo "$KEYSTORE_B64" | base64 --decode > /tmp/instaeclipse-release.jks
           ./gradlew ":$PLUGIN_MODULE:assembleRelease" --no-daemon \
-            -PpluginVersion="$PLUGIN_VERSION" \
-            -PpluginVersionCode="$PLUGIN_VERSION_CODE" \
+            -PpluginVersion="$PLUGIN_VERSION" -PpluginVersionCode="$PLUGIN_VERSION_CODE" \
             -PpluginReleaseStoreFile=/tmp/instaeclipse-release.jks \
             -PpluginReleaseStorePassword="$KEYSTORE_PASSWORD" \
             -PpluginReleaseKeyAlias="$KEY_ALIAS" \
@@ -235,45 +245,39 @@ jobs:
           apksigner verify --verbose "$APK"
 
       - name: Publish GitHub release
+        if: ${{ env.SKIP_RELEASE != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh release create "plugin/${PLUGIN_ID}/v${PLUGIN_VERSION}" \
-            "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk" \
-            dist/SHA256SUMS-release.txt \
+            "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk" dist/SHA256SUMS-release.txt \
             --title "${PLUGIN_ID} ${PLUGIN_VERSION}" \
             --notes "Signed InstaEclipse executable plugin. Requires the compatible InstaEclipse Core API and signing identity declared by the plugin manifest."
 
       - name: Update live catalog
+        if: ${{ env.SKIP_RELEASE != 'true' }}
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin "$CATALOG_BRANCH"
-          git reset --hard HEAD
-          git clean -fd
           git checkout "$CATALOG_BRANCH"
           python3 - "$PLUGIN_ROOT/$PLUGIN_ID/plugin.json" <<'PY'
           import json, pathlib, os
           manifest = json.loads(pathlib.Path('/tmp/plugin-release-manifest.json').read_text())
           manifest['version'] = os.environ['PLUGIN_VERSION']
-          apk = f"instaeclipse-{os.environ['PLUGIN_ID']}-{os.environ['PLUGIN_VERSION']}.apk"
           tag = f"plugin/{os.environ['PLUGIN_ID']}/v{os.environ['PLUGIN_VERSION']}"
           base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}"
-          manifest.update({
-              'download_url': f'{base}/{apk}',
-              'sha256_url': f'{base}/SHA256SUMS-release.txt',
-              'remote': True
-          })
+          apk = f"instaeclipse-{os.environ['PLUGIN_ID']}-{os.environ['PLUGIN_VERSION']}.apk"
+          manifest.update({'download_url': f'{base}/{apk}', 'sha256_url': f'{base}/SHA256SUMS-release.txt', 'remote': True})
           path = pathlib.Path('plugins/catalog.json')
           catalog = json.loads(path.read_text()) if path.exists() else {'schema': 1, 'catalog_version': 0, 'plugins': []}
           catalog['schema'] = 1
           catalog['catalog_version'] = int(catalog.get('catalog_version', 0)) + 1
           entries = [p for p in catalog.get('plugins', []) if p.get('id') != manifest['id']]
-          public = {k: v for k, v in manifest.items() if k not in {'schema', 'module'}}
-          entries.append(public)
+          entries.append({k:v for k,v in manifest.items() if k not in {'schema','module'}})
           entries.sort(key=lambda p: p['id'])
           catalog['plugins'] = entries
           path.write_text(json.dumps(catalog, indent=2) + '\n')
