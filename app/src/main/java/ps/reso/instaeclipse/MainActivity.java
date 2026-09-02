@@ -9,11 +9,10 @@ import android.widget.FrameLayout;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.app.ActivityCompat;
+import androidx.core.view.WindowCompat;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.google.android.material.color.DynamicColors;
 
 import ps.reso.instaeclipse.fragments.FeaturesFragment;
 import ps.reso.instaeclipse.fragments.HelpFragment;
@@ -29,7 +28,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        DynamicColors.applyToActivityIfAvailable(this);
+        WindowCompat.enableEdgeToEdge(getWindow());
         super.onCreate(savedInstanceState);
         Logging.init(this, "instaeclipse_companion.log");
         VersionCheckUtility.checkForUpdates(this);
@@ -45,8 +44,9 @@ public class MainActivity extends AppCompatActivity {
         FrameLayout fragmentContainer = findViewById(R.id.fragment_container);
         bottomNavigation.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             int navHeight = v.getHeight();
-            if (fragmentContainer.getPaddingBottom() != navHeight) {
-                fragmentContainer.setPadding(0, 0, 0, navHeight);
+            int bottomPadding = navHeight + dp(8);
+            if (fragmentContainer.getPaddingBottom() != bottomPadding) {
+                fragmentContainer.setPadding(dp(12), 0, dp(12), bottomPadding);
             }
         });
 
@@ -63,10 +63,16 @@ public class MainActivity extends AppCompatActivity {
             else if (item.getItemId() == R.id.nav_help) selectedFragment = new HelpFragment();
             if (selectedFragment != null) {
                 getSupportFragmentManager().beginTransaction()
-                        .replace(R.id.fragment_container, selectedFragment).commit();
+                        .setReorderingAllowed(true)
+                        .replace(R.id.fragment_container, selectedFragment)
+                        .commit();
             }
             return true;
         });
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     /** Android 10+ uses MediaStore/scoped storage and must not receive a legacy prompt. */
@@ -75,13 +81,6 @@ public class MainActivity extends AppCompatActivity {
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) return;
         if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_STORAGE_PROMPTED, false)) return;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_STORAGE_PROMPTED, true).apply();
-        ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_REQUEST);
-    }
-
-    @Override public void onBackPressed() {
-        if (getSupportFragmentManager().getBackStackEntryCount() > 0)
-            getSupportFragmentManager().popBackStack();
-        else super.onBackPressed();
+        requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_REQUEST);
     }
 }
