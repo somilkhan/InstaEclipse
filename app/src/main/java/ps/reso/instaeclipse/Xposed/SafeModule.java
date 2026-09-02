@@ -64,7 +64,6 @@ import ps.reso.instaeclipse.utils.feature.FeatureManager;
 import ps.reso.instaeclipse.utils.log.Logging;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 import ps.reso.instaeclipse.utils.plugin.PluginManager;
-import ps.reso.instaeclipse.utils.plugin.PluginRuntime;
 
 /** Startup-safe Xposed entrypoint; DexKit discovery never runs on Instagram's main thread. */
 @SuppressLint("UnsafeDynamicallyLoadedCode")
@@ -144,7 +143,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
                 Module.dexKitBridge = bridge;
                 FeatureManager.refreshFeatureStatus();
                 registerSyncReceiver(appContext);
-                PluginRuntime.start(appContext, classLoader, detectedVersion);
+                PluginManager.bootstrap(appContext, classLoader, detectedVersion);
                 installAllFeatures(appContext, bridge, classLoader, lpparam);
                 ModuleLog.line("(InstaEclipse | Startup): asynchronous bootstrap complete for IG " + detectedVersion);
             } catch (Throwable t) {
@@ -217,22 +216,5 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         });
         run("Interceptor", () -> new IGNetworkInterceptor().handleInterceptor(lpparam));
         run("MainActivityUI", () -> new UIHookManager().mainActivity(classLoader));
-    }
-
-    private interface FeatureInstall { void install() throws Throwable; }
-
-    private static void run(String name, FeatureInstall install) {
-        if (!CompatibilityRuntime.canRun(name)) {
-            ModuleLog.line("(InstaEclipse | " + name + "): skipped while circuit is open");
-            return;
-        }
-        CompatibilityRuntime.begin(name);
-        try {
-            install.install();
-            CompatibilityRuntime.installed(name, "feature-installer");
-        } catch (Throwable t) {
-            CompatibilityRuntime.installFailed(name, t);
-            ModuleLog.line("(InstaEclipse | " + name + "): isolated install failure: " + t);
-        }
     }
 }
