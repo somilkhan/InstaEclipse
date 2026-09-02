@@ -16,6 +16,10 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    buildFeatures {
+        buildConfig true
+    }
+
     signingConfigs {
         release {
             def storeFilePath = project.findProperty('coreReleaseStoreFile')
@@ -29,9 +33,6 @@ android {
     }
 
     lint {
-        // The default values/strings.xml is the intentional fallback for locales
-        // whose translation is incomplete. Missing translations must not block a
-        // release; actual resource/API correctness issues remain fatal.
         disable 'MissingTranslation'
     }
 
