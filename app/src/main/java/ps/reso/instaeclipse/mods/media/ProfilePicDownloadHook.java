@@ -57,12 +57,11 @@ public final class ProfilePicDownloadHook {
             }
         };
 
-        // Android exposes performLongClick() and, on API 23+, the coordinate-aware
-        // performLongClick(int, int). There is no performLongClick(int) overload.
+        // Hook only the canonical framework entry point. Android's coordinate-aware
+        // performLongClick(float, float) delegates into this no-argument method, so
+        // there is no reason to resolve a second, API-dependent overload here.
+        // This avoids brittle exact-signature resolution across Android runtimes.
         XposedHelpers.findAndHookMethod(View.class, "performLongClick", hook);
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            XposedHelpers.findAndHookMethod(View.class, "performLongClick", int.class, int.class, hook);
-        }
 
         ModuleLog.line("(InstaEclipse | ProfileDownload): hook installed");
     }
