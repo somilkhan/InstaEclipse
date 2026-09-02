@@ -15,7 +15,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-/** Live Feature Hub. All downloadable feature metadata comes from the remote catalog. */
+/** Live Feature Hub. Downloadable feature metadata comes only from the remote catalog. */
 public final class PluginHubActivity extends AppCompatActivity {
     private LinearLayout content;
     private PluginCatalogManager.Catalog catalog;
@@ -44,9 +44,7 @@ public final class PluginHubActivity extends AppCompatActivity {
         if (restartAfterChange && pendingUninstallId == null) {
             restartAfterChange = false;
             new android.os.Handler(getMainLooper()).postDelayed(() -> {
-                if (!PluginManager.restartInstagram(this)) {
-                    Toast.makeText(this, "Could not restart Instagram automatically.", Toast.LENGTH_LONG).show();
-                }
+                if (!PluginManager.restartInstagram(this)) Toast.makeText(this, "Could not restart Instagram automatically.", Toast.LENGTH_LONG).show();
             }, 350L);
         }
     }
@@ -57,9 +55,7 @@ public final class PluginHubActivity extends AppCompatActivity {
             try {
                 PluginCatalogManager.Catalog result = PluginCatalogManager.load(this, refresh);
                 runOnUiThread(() -> { catalog = result; render(); });
-            } catch (Throwable error) {
-                runOnUiThread(() -> showError(error.getMessage()));
-            }
+            } catch (Throwable error) { runOnUiThread(() -> showError(error.getMessage())); }
         }, "InstaEclipse-FeatureHub").start();
     }
 
@@ -143,14 +139,17 @@ public final class PluginHubActivity extends AppCompatActivity {
     }
 
     private void download(PluginCatalogManager.PluginEntry p) {
-        if (p.downloadUrl == null || p.downloadUrl.isEmpty() || p.sha256Url == null || p.sha256Url.isEmpty()) { Toast.makeText(this, "This pack is not publish-ready yet.", Toast.LENGTH_LONG).show(); return; }
+        if (p.downloadUrl == null || p.downloadUrl.isEmpty()) { Toast.makeText(this, "This pack has no download artifact.", Toast.LENGTH_LONG).show(); return; }
         Toast.makeText(this, "Downloading " + (p.name == null ? p.id : p.name) + " v" + p.version + "…", Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             try {
-                String sidecar = new String(readUrl(p.sha256Url), StandardCharsets.UTF_8);
-                String fileName = p.downloadUrl.substring(p.downloadUrl.lastIndexOf('/') + 1);
-                String sha = findSha(sidecar, fileName);
-                if (sha.isEmpty()) throw new SecurityException("Published SHA-256 not found for " + fileName);
+                String sha = p.sha256 == null ? "" : p.sha256.trim().toLowerCase(java.util.Locale.US);
+                if (sha.isEmpty() && p.sha256Url != null && !p.sha256Url.isEmpty()) {
+                    String sidecar = new String(readUrl(p.sha256Url), StandardCharsets.UTF_8);
+                    String fileName = p.downloadUrl.substring(p.downloadUrl.lastIndexOf('/') + 1);
+                    sha = findSha(sidecar, fileName);
+                }
+                if (!sha.matches("[0-9a-f]{64}")) throw new SecurityException("Published SHA-256 is missing or invalid");
                 PluginDownloadManager.downloadAndQueue(this, p.id, p.version, p.packageName, p.downloadUrl, sha, p.maxInstagramVersion);
             } catch (Throwable e) { runOnUiThread(() -> Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show()); }
         }, "InstaEclipse-PluginDownload").start();
@@ -158,11 +157,23 @@ public final class PluginHubActivity extends AppCompatActivity {
 
     private void showLoading(String text) { content.removeAllViews(); TextView t = new TextView(this); t.setText(text); t.setTextSize(16); t.setTextColor(Color.WHITE); t.setPadding(0, dp(24), 0, dp(24)); content.addView(t); }
     private void showError(String message) { content.removeAllViews(); TextView t = new TextView(this); t.setText("Feature Hub unavailable\n" + (message == null ? "Unknown error" : message)); t.setTextSize(16); t.setTextColor(Color.WHITE); content.addView(t); Button retry = new Button(this); retry.setText("Retry"); retry.setOnClickListener(v -> loadCatalog(true)); content.addView(retry); }
-    private static String findSha(String sidecar, String fileName) { for (String line : sidecar.split("\\R")) { String[] parts = line.trim().split("\\s+"); if (parts.length >= 2 && parts[1].equals(fileName)) return parts[0]; } return ""; }
+    private static String findSha(String sidecar, String fileName) {
+        String expected = fileName.trim();
+        for (String line : sidecar.split("\\R")) {
+            String trimmed = line.trim(); if (trimmed.isEmpty()) continue;
+            String[] parts = trimmed.split("\\s+"); if (parts.length < 2) continue;
+            String hash = parts[0].trim().toLowerCase(java.util.Locale.US);
+            String candidate = parts[parts.length - 1].trim();
+            if (candidate.startsWith("*")) candidate = candidate.substring(1);
+            int slash = candidate.lastIndexOf('/'); if (slash >= 0) candidate = candidate.substring(slash + 1);
+            if (hash.matches("[0-9a-f]{64}") && expected.equals(candidate)) return hash;
+        }
+        return "";
+    }
     private static String safe(String value) { return value == null ? "?" : value; }
     private static int compareVersion(String left, String right) { String[] a = left.split("\\."), b = right.split("\\."); for (int i = 0; i < 3; i++) { int x = i < a.length ? parse(a[i]) : 0; int y = i < b.length ? parse(b[i]) : 0; if (x != y) return Integer.compare(x, y); } return 0; }
     private static int parse(String value) { try { return Integer.parseInt(value); } catch (Throwable ignored) { return 0; } }
-    private byte[] readUrl(String url) throws Exception { HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection(); c.setConnectTimeout(10000); c.setReadTimeout(15000); c.setInstanceFollowRedirects(true); c.setRequestProperty("User-Agent", "InstaEclipse-FeatureHub/1.1"); try { int code = c.getResponseCode(); if (code != 200) throw new IllegalStateException("HTTP " + code); return readAll(c.getInputStream()); } finally { c.disconnect(); } }
+    private byte[] readUrl(String url) throws Exception { HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection(); c.setConnectTimeout(10000); c.setReadTimeout(15000); c.setInstanceFollowRedirects(true); c.setRequestProperty("User-Agent", "InstaEclipse-FeatureHub/1.2"); try { int code = c.getResponseCode(); if (code != 200) throw new IllegalStateException("HTTP " + code); return readAll(c.getInputStream()); } finally { c.disconnect(); } }
     private static byte[] readAll(InputStream i) throws Exception { java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream(); byte[] b = new byte[8192]; int n; while ((n = i.read(b)) != -1) o.write(b, 0, n); return o.toByteArray(); }
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 }
