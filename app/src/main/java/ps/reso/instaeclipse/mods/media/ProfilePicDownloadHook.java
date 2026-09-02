@@ -51,18 +51,17 @@ public final class ProfilePicDownloadHook {
             FeatureStatusTracker.setHooked("ProfileDownload");
         }
 
-        XposedHelpers.findAndHookMethod(View.class, "performLongClick", new XC_MethodHook() {
+        XC_MethodHook hook = new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
                 handleLongClick((View) param.thisObject);
             }
-        });
+        };
 
+        // Android exposes performLongClick() and, on API 23+, the coordinate-aware
+        // performLongClick(int, int). There is no performLongClick(int) overload.
+        XposedHelpers.findAndHookMethod(View.class, "performLongClick", hook);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            XposedHelpers.findAndHookMethod(View.class, "performLongClick", int.class, new XC_MethodHook() {
-                @Override protected void afterHookedMethod(MethodHookParam param) {
-                    handleLongClick((View) param.thisObject);
-                }
-            });
+            XposedHelpers.findAndHookMethod(View.class, "performLongClick", int.class, int.class, hook);
         }
 
         ModuleLog.line("(InstaEclipse | ProfileDownload): hook installed");
