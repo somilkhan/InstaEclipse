@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "instaEclipse"
-include ':app', ':plugin-api', ':plugin-pfp'
+include ':app'
