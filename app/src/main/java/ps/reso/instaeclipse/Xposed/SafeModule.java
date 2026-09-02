@@ -173,6 +173,23 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         }
     }
 
+    private interface FeatureInstall { void install() throws Throwable; }
+
+    private static void run(String name, FeatureInstall install) {
+        if (!CompatibilityRuntime.canRun(name)) {
+            ModuleLog.line("(InstaEclipse | " + name + "): skipped while circuit is open");
+            return;
+        }
+        CompatibilityRuntime.begin(name);
+        try {
+            install.install();
+            CompatibilityRuntime.installed(name, "feature-installer");
+        } catch (Throwable t) {
+            CompatibilityRuntime.installFailed(name, t);
+            ModuleLog.line("(InstaEclipse | " + name + "): isolated install failure: " + t);
+        }
+    }
+
     private void installAllFeatures(Context appContext, DexKitBridge bridge, ClassLoader classLoader, XC_LoadPackage.LoadPackageParam lpparam) {
         run("DevOptions", () -> new DevOptionsUnlockHook().handleDevOptions(bridge));
         run("GhostSeen", () -> { new GhostDMSeenHook().handleSeenBlock(bridge); new GhostDMMarkAsReadHook(moduleSourceDir).install(classLoader); new GhostChannelMarkAsReadHook().install(classLoader); });
