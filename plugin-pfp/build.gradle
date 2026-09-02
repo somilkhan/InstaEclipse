@@ -4,6 +4,8 @@ def releaseStoreFile = project.findProperty('pluginReleaseStoreFile')
 def releaseStorePassword = project.findProperty('pluginReleaseStorePassword')
 def releaseKeyAlias = project.findProperty('pluginReleaseKeyAlias')
 def releaseKeyPassword = project.findProperty('pluginReleaseKeyPassword')
+def pluginVersion = project.findProperty('pluginVersion') ?: '1.0.0'
+def pluginVersionCode = (project.findProperty('pluginVersionCode') ?: '10000').toInteger()
 
 android {
     namespace 'ps.reso.instaeclipse.plugins.pfp'
@@ -13,8 +15,8 @@ android {
         applicationId 'ps.reso.instaeclipse.plugins.pfp'
         minSdk 28
         targetSdk 35
-        versionCode 10000
-        versionName '1.0.0'
+        versionCode pluginVersionCode
+        versionName pluginVersion
     }
 
     signingConfigs {
@@ -30,9 +32,7 @@ android {
 
     buildTypes {
         release {
-            if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
-                signingConfig signingConfigs.release
-            }
+            if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) signingConfig signingConfigs.release
         }
     }
 
