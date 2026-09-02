@@ -12,8 +12,14 @@ on:
         required: true
         type: string
   push:
+    branches:
+      - stability/latest-instagram
+    paths:
+      - "plugin-*/**"
+      - "plugins/**"
+      - "plugin-api/**"
     tags:
-      - 'plugin/*/v*'
+      - "plugin/*/v*"
 
 permissions:
   contents: write
@@ -22,8 +28,96 @@ env:
   PLUGIN_ROOT: plugins
   CATALOG_BRANCH: stability/latest-instagram
 
+concurrency:
+  group: plugin-packs-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  verify-plugins:
+    name: Verify plugin packs
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Validate canonical plugin definitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          manifests=("$PLUGIN_ROOT"/*/plugin.json)
+          test "${#manifests[@]}" -gt 0
+          python3 - "${manifests[@]}" <<'PY'
+          import json, pathlib, sys
+          required = [
+              'schema', 'id', 'name', 'description', 'version',
+              'min_core_api', 'max_core_api', 'entrypoint', 'packageName',
+              'min_instagram_version', 'max_instagram_version', 'module'
+          ]
+          for raw in sys.argv[1:]:
+              path = pathlib.Path(raw)
+              data = json.loads(path.read_text())
+              missing = [key for key in required if key not in data]
+              if missing:
+                  raise SystemExit(f'{path}: missing {", ".join(missing)}')
+              if data['schema'] != 1:
+                  raise SystemExit(f'{path}: unsupported schema')
+              if not data['version'] or not isinstance(data['version'], str) or not __import__('re').fullmatch(r'\d+\.\d+\.\d+', data['version']):
+                  raise SystemExit(f'{path}: invalid semver version')
+              module = str(data['module']).strip()
+              if not module or module.startswith(':') or '/' in module:
+                  raise SystemExit(f'{path}: invalid Gradle module {module!r}')
+              if not pathlib.Path(module).is_dir():
+                  raise SystemExit(f'{path}: Gradle module directory not found: {module}')
+          PY
+
+      - name: Materialize plugin manifests for CI builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json, pathlib
+          for manifest_path in pathlib.Path('plugins').glob('*/plugin.json'):
+              manifest = json.loads(manifest_path.read_text())
+              module = manifest['module']
+              target = pathlib.Path(module) / 'src/main/assets/plugin.json'
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
+
+      - name: Build every plugin pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          while IFS= read -r module; do
+            echo "==> Building :${module}:assembleDebug"
+            ./gradlew ":${module}:assembleDebug" --no-daemon
+          done < <(find . -maxdepth 1 -type d -name 'plugin-*' -printf '%f\n' | sort)
+
+      - name: Upload debug plugin artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: instaeclipse-plugin-debug-${{ github.sha }}
+          path: plugin-*/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
   release-plugin:
+    name: Release plugin pack
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/plugin/') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -59,30 +153,38 @@ jobs:
           MANIFEST="$PLUGIN_ROOT/$PLUGIN_ID/plugin.json"
           [[ -f "$MANIFEST" ]] || { echo "Missing $MANIFEST"; exit 1; }
           python3 - "$MANIFEST" <<'PY'
-          import json, pathlib, sys, os
-          p = pathlib.Path(sys.argv[1]); d = json.loads(p.read_text())
-          required = ['schema','id','name','description','min_core_api','max_core_api','entrypoint','min_instagram_version','max_instagram_version','module']
+          import json, pathlib, re, sys, os
+          p = pathlib.Path(sys.argv[1])
+          d = json.loads(p.read_text())
+          required = [
+              'schema', 'id', 'name', 'description', 'version',
+              'min_core_api', 'max_core_api', 'entrypoint', 'packageName',
+              'min_instagram_version', 'max_instagram_version', 'module'
+          ]
           missing = [x for x in required if x not in d]
-          if missing: raise SystemExit(f"Missing manifest fields: {', '.join(missing)}")
+          if missing: raise SystemExit(f'Missing manifest fields: {", ".join(missing)}')
           if d['id'] != os.environ['PLUGIN_ID']: raise SystemExit('Manifest id does not match release id')
           if d['schema'] != 1: raise SystemExit('Unsupported plugin schema')
+          if not re.fullmatch(r'\d+\.\d+\.\d+', d['version']): raise SystemExit('Manifest version must be semver')
           module = str(d['module']).strip()
           if not module or module.startswith(':') or '/' in module: raise SystemExit('Invalid Gradle module')
+          if not pathlib.Path(module).is_dir(): raise SystemExit(f'Gradle module directory not found: {module}')
           PY
           echo "PLUGIN_MANIFEST=$MANIFEST" >> "$GITHUB_ENV"
           echo "PLUGIN_MODULE=$(python3 -c 'import json,os; print(json.load(open(os.environ["PLUGIN_MANIFEST"]))["module"])')" >> "$GITHUB_ENV"
+          cp "$MANIFEST" /tmp/plugin-release-manifest.json
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
           cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Materialize plugin version into build manifest
+      - name: Materialize release version into plugin manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -91,11 +193,16 @@ jobs:
           cp "$PLUGIN_MANIFEST" "$TARGET"
           python3 - "$TARGET" <<'PY'
           import json, pathlib, sys, os
-          p = pathlib.Path(sys.argv[1]); d = json.loads(p.read_text()); d['version'] = os.environ['PLUGIN_VERSION']; p.write_text(json.dumps(d, indent=2) + '\n')
+          p = pathlib.Path(sys.argv[1])
+          d = json.loads(p.read_text())
+          d['version'] = os.environ['PLUGIN_VERSION']
+          p.write_text(json.dumps(d, indent=2) + '\n')
           PY
 
       - name: Build debug artifact
+        shell: bash
         run: |
+          set -euo pipefail
           chmod +x ./gradlew
           ./gradlew ":$PLUGIN_MODULE:assembleDebug" -PpluginVersion="$PLUGIN_VERSION" -PpluginVersionCode="$PLUGIN_VERSION_CODE" --no-daemon
 
@@ -118,14 +225,20 @@ jobs:
             -PpluginReleaseKeyAlias="$KEY_ALIAS" \
             -PpluginReleaseKeyPassword="$KEY_PASSWORD"
           mkdir -p dist
-          cp "$PLUGIN_MODULE/build/outputs/apk/release/${PLUGIN_MODULE}-release.apk" "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk"
-          sha256sum "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk" > dist/SHA256SUMS-release.txt
-          apksigner verify --verbose "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk"
+          APK="dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk"
+          cp "$PLUGIN_MODULE/build/outputs/apk/release/${PLUGIN_MODULE}-release.apk" "$APK"
+          PACKAGE_NAME=$(aapt dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+          EXPECTED_PACKAGE=$(python3 -c 'import json; print(json.load(open("/tmp/plugin-release-manifest.json"))["packageName"])')
+          test "$PACKAGE_NAME" = "$EXPECTED_PACKAGE" || { echo "APK packageName mismatch: $PACKAGE_NAME != $EXPECTED_PACKAGE"; exit 1; }
+          sha256sum "$APK" > dist/SHA256SUMS-release.txt
+          command -v apksigner >/dev/null 2>&1 || { echo 'apksigner not found on runner'; exit 1; }
+          apksigner verify --verbose "$APK"
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           gh release create "plugin/${PLUGIN_ID}/v${PLUGIN_VERSION}" \
             "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk" \
             dist/SHA256SUMS-release.txt \
@@ -139,23 +252,32 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin "$CATALOG_BRANCH"
+          git reset --hard HEAD
+          git clean -fd
           git checkout "$CATALOG_BRANCH"
-          python3 - "$PLUGIN_MANIFEST" <<'PY'
+          python3 - "$PLUGIN_ROOT/$PLUGIN_ID/plugin.json" <<'PY'
           import json, pathlib, os
-          manifest = json.loads(pathlib.Path(os.environ['PLUGIN_MANIFEST']).read_text())
+          manifest = json.loads(pathlib.Path('/tmp/plugin-release-manifest.json').read_text())
+          manifest['version'] = os.environ['PLUGIN_VERSION']
           apk = f"instaeclipse-{os.environ['PLUGIN_ID']}-{os.environ['PLUGIN_VERSION']}.apk"
           tag = f"plugin/{os.environ['PLUGIN_ID']}/v{os.environ['PLUGIN_VERSION']}"
           base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}"
-          manifest.update({'version': os.environ['PLUGIN_VERSION'], 'download_url': f'{base}/{apk}', 'sha256_url': f'{base}/SHA256SUMS-release.txt'})
+          manifest.update({
+              'download_url': f'{base}/{apk}',
+              'sha256_url': f'{base}/SHA256SUMS-release.txt',
+              'remote': True
+          })
           path = pathlib.Path('plugins/catalog.json')
-          catalog = json.loads(path.read_text()) if path.exists() else {'schema': 1, 'core_api': 1, 'plugins': []}
+          catalog = json.loads(path.read_text()) if path.exists() else {'schema': 1, 'catalog_version': 0, 'plugins': []}
+          catalog['schema'] = 1
+          catalog['catalog_version'] = int(catalog.get('catalog_version', 0)) + 1
           entries = [p for p in catalog.get('plugins', []) if p.get('id') != manifest['id']]
-          public = {k: v for k, v in manifest.items() if k not in {'schema','entrypoint','module'}}
+          public = {k: v for k, v in manifest.items() if k not in {'schema', 'module'}}
           entries.append(public)
           entries.sort(key=lambda p: p['id'])
           catalog['plugins'] = entries
           path.write_text(json.dumps(catalog, indent=2) + '\n')
           PY
           git add plugins/catalog.json
-          git commit -m "chore(plugin): publish ${PLUGIN_ID} v${PLUGIN_VERSION} to catalog" || exit 0
+          git commit -m "chore(plugin): publish ${PLUGIN_ID} v${PLUGIN_VERSION} to catalog"
           git push origin "$CATALOG_BRANCH"
