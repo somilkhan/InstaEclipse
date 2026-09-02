@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -37,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
 
         Toolbar toolbar = findViewById(R.id.top_app_bar); setSupportActionBar(toolbar);
         ActionBar actionBar = getSupportActionBar(); if (actionBar != null) actionBar.setDisplayShowTitleEnabled(false);
+        TextView toolbarVersion = findViewById(R.id.toolbar_version);
+        toolbarVersion.setText("v" + BuildConfig.VERSION_NAME);
         BottomNavigationView bottomNavigation = findViewById(R.id.bottom_navigation);
         FrameLayout fragmentContainer = findViewById(R.id.fragment_container);
         bottomNavigation.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> { int navHeight = v.getHeight(); int bottomPadding = navHeight + dp(8); if (fragmentContainer.getPaddingBottom() != bottomPadding) fragmentContainer.setPadding(dp(12), 0, dp(12), bottomPadding); });
