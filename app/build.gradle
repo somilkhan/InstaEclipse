@@ -57,6 +57,8 @@ android {
     }
 }
 
+// Signed Core release is published independently from downloadable plugin packs.
+
 dependencies {
     implementation project(':plugin-api')
     implementation libs.appcompat
