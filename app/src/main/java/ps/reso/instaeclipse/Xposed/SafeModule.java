@@ -63,7 +63,6 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureManager;
 import ps.reso.instaeclipse.utils.log.Logging;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
-import ps.reso.instaeclipse.utils.plugin.PluginManager;
 
 /** Startup-safe Xposed entrypoint; DexKit discovery never runs on Instagram's main thread. */
 @SuppressLint("UnsafeDynamicallyLoadedCode")
@@ -143,7 +142,6 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
                 Module.dexKitBridge = bridge;
                 FeatureManager.refreshFeatureStatus();
                 registerSyncReceiver(appContext);
-                PluginManager.bootstrap(appContext, classLoader, detectedVersion);
                 installAllFeatures(appContext, bridge, classLoader, lpparam);
                 ModuleLog.line("(InstaEclipse | Startup): asynchronous bootstrap complete for IG " + detectedVersion);
             } catch (Throwable t) {
@@ -227,10 +225,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
             StorySelfMenuCompatibilityHook.install(bridge, classLoader);
         });
         run("ReelDownload", () -> new ReelDownloadHook().install(bridge, classLoader));
-        run("ProfileDownload", () -> {
-            if (!PluginManager.isInstalled(appContext, "pfp-downloader")) ProfilePicDownloadHook.install();
-            else ModuleLog.line("(InstaEclipse | ProfileDownload): core fallback skipped; PFP plugin is active");
-        });
+        run("ProfileDownload", ProfilePicDownloadHook::install);
         run("Interceptor", () -> new IGNetworkInterceptor().handleInterceptor(lpparam));
         run("MainActivityUI", () -> new UIHookManager().mainActivity(classLoader));
     }
