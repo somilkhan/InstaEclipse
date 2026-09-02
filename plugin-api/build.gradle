@@ -1,6 +1,4 @@
-plugins {
-    id 'com.android.library' version '8.11.1'
-}
+apply plugin: 'com.android.library'
 
 android {
     namespace 'ps.reso.instaeclipse.plugin.api'
