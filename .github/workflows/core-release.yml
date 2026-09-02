@@ -6,7 +6,6 @@ on:
       - stability/latest-instagram
     paths:
       - "app/**"
-      - "plugin-api/**"
       - "gradle/**"
       - "build.gradle"
       - "settings.gradle"
@@ -149,4 +148,4 @@ jobs:
             "dist/instaeclipse-core-${VERSION}.apk" dist/SHA256SUMS-core.txt \
             --target "$GITHUB_SHA" \
             --title "InstaEclipse Core ${VERSION}" \
-            --notes "Signed InstaEclipse Core APK. Install this APK first; downloadable feature packs are managed from the in-app Plugins hub."
+            --notes "Signed InstaEclipse Core APK release."
