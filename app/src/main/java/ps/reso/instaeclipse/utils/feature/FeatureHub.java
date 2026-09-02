@@ -10,6 +10,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
@@ -28,11 +29,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.utils.plugin.PluginDownloadManager;
 
-/**
- * Safe feature catalog UI. The catalog only activates code already shipped in the core APK.
- * Remote executable code is deliberately not loaded.
- */
+/** Feature catalog and real executable-plugin downloader. */
 public final class FeatureHub {
     private static final String CATALOG_URL = "https://raw.githubusercontent.com/somilkhan/InstaEclipse/main/plugins.json";
     private static final String PREFS = "instaeclipse_cache";
@@ -52,7 +51,7 @@ public final class FeatureHub {
         LinearLayout root = createRoot(context);
 
         TextView title = text(context, "Feature Hub", 22, true);
-        TextView subtitle = text(context, "Install or update feature packs without reinstalling the core app.", 14, false);
+        TextView subtitle = text(context, "Install new features without reinstalling the core app.", 14, false);
         subtitle.setTextColor(ContextCompat.getColor(context, android.R.color.darker_gray));
         root.addView(title);
         root.addView(subtitle, marginParams(0, 4, 0, 16));
@@ -84,7 +83,6 @@ public final class FeatureHub {
                 connection.setRequestProperty("User-Agent", "InstaEclipse/0.6");
                 int code = connection.getResponseCode();
                 if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
-
                 StringBuilder body = new StringBuilder();
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
                     String line;
@@ -92,14 +90,11 @@ public final class FeatureHub {
                 } finally {
                     connection.disconnect();
                 }
-
                 Catalog catalog = new Gson().fromJson(body.toString(), Catalog.class);
                 if (catalog == null || catalog.plugins == null) throw new IllegalStateException("Invalid catalog");
                 MAIN.post(() -> renderCatalog(context, root, status, catalog));
             } catch (Throwable error) {
                 MAIN.post(() -> {
-                    // Never stack another Retry button when the user retries repeatedly.
-                    // The bundled catalog keeps the feature list usable even when GitHub is offline.
                     try {
                         Catalog bundled = loadBundledCatalog(context);
                         status.setText("Offline catalog • live updates unavailable");
@@ -144,6 +139,7 @@ public final class FeatureHub {
     }
 
     private static View pluginCard(Context context, Plugin plugin) {
+        boolean remote = "remote".equalsIgnoreCase(plugin.delivery);
         MaterialCardView card = new MaterialCardView(context);
         card.setCardBackgroundColor(ContextCompat.getColor(context, R.color.dark_gray));
         card.setRadius(dp(context, 20));
@@ -159,7 +155,7 @@ public final class FeatureHub {
         TextView name = text(context, plugin.name, 16, true);
         TextView description = text(context, plugin.description, 13, false);
         description.setTextColor(ContextCompat.getColor(context, android.R.color.darker_gray));
-        TextView version = text(context, "v" + plugin.version + " • Built-in", 11, false);
+        TextView version = text(context, "v" + plugin.version + (remote ? " • Downloadable" : " • Built-in"), 11, false);
         version.setTextColor(ContextCompat.getColor(context, R.color.accent_blue));
         copy.addView(name);
         copy.addView(description, marginParams(0, 3, 8, 0));
@@ -167,12 +163,20 @@ public final class FeatureHub {
 
         MaterialButton action = new MaterialButton(context);
         action.setMinWidth(0);
-        action.setText(isInstalled(context, plugin) ? "Installed" : "Install");
-        action.setOnClickListener(v -> {
-            boolean enable = !isInstalled(context, plugin);
-            setPlugin(context, plugin, enable);
-            action.setText(enable ? "Installed" : "Install");
-        });
+        if (remote) {
+            boolean installed = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("plugin_installed_" + plugin.id, false);
+            boolean queued = PluginDownloadManager.isQueued(context, plugin.id, plugin.version);
+            action.setText(installed ? "Installed" : queued ? "Queued" : "Download");
+            action.setEnabled(!installed && !queued);
+            action.setOnClickListener(v -> downloadPlugin(context, plugin, action));
+        } else {
+            action.setText(isBuiltinEnabled(context, plugin) ? "Enabled" : "Enable");
+            action.setOnClickListener(v -> {
+                boolean enable = !isBuiltinEnabled(context, plugin);
+                setBuiltinPlugin(context, plugin, enable);
+                action.setText(enable ? "Enabled" : "Enable");
+            });
+        }
 
         row.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         row.addView(action, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -180,16 +184,39 @@ public final class FeatureHub {
         return card;
     }
 
-    private static boolean isInstalled(Context context, Plugin plugin) {
+    private static void downloadPlugin(Context context, Plugin plugin, MaterialButton action) {
+        if (plugin.download_url == null || plugin.download_url.isEmpty()) {
+            Toast.makeText(context, "This plugin is not published yet", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        action.setEnabled(false);
+        action.setText("Downloading…");
+        EXECUTOR.execute(() -> {
+            try {
+                PluginDownloadManager.downloadAndQueue(context, plugin.id, plugin.version,
+                        plugin.download_url, plugin.sha256, "unknown");
+                MAIN.post(() -> {
+                    action.setText("Queued");
+                    Toast.makeText(context, plugin.name + " queued for Instagram", Toast.LENGTH_SHORT).show();
+                });
+            } catch (Throwable error) {
+                MAIN.post(() -> {
+                    action.setText("Download");
+                    action.setEnabled(true);
+                    Toast.makeText(context, "Plugin download failed: " + error.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    private static boolean isBuiltinEnabled(Context context, Plugin plugin) {
         if (plugin.pref_keys == null || plugin.pref_keys.length == 0) return false;
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        for (String key : plugin.pref_keys) {
-            if (!prefs.getBoolean(key, false)) return false;
-        }
+        for (String key : plugin.pref_keys) if (!prefs.getBoolean(key, false)) return false;
         return true;
     }
 
-    private static void setPlugin(Context context, Plugin plugin, boolean enabled) {
+    private static void setBuiltinPlugin(Context context, Plugin plugin, boolean enabled) {
         SharedPreferences.Editor editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
         if (plugin.pref_keys != null) {
             for (String key : plugin.pref_keys) {
@@ -247,7 +274,8 @@ public final class FeatureHub {
         String description;
         String version;
         String delivery;
-        String release_url;
+        String download_url;
+        String sha256;
         String[] pref_keys;
     }
 }
