@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "catalog_version": 6,
+  "catalog_version": 7,
   "plugins": [
     {
       "id": "pfp-downloader",
@@ -18,6 +18,7 @@
       "release_notes": "Instagram 443 compatibility hotfix. Improves profile-picture detection, preserves Instagram long-press behavior, discovers avatar URLs from view tags/model objects, and preserves the downloaded image MIME format.",
       "mandatory": false,
       "download_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin/pfp-downloader/v1.2.1/instaeclipse-pfp-downloader-1.2.1.apk",
+      "sha256": "bb53495cb062565b6360083275296d52266bed5d0a03ceb3d2cacadf9589c5c6",
       "sha256_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin/pfp-downloader/v1.2.1/SHA256SUMS-release.txt"
     }
   ]
