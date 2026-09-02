@@ -3,8 +3,6 @@ package ps.reso.instaeclipse.utils.feature;
 import android.app.Application;
 import android.content.pm.PackageInfo;
 
-import java.util.List;
-
 import de.robv.android.xposed.AndroidAppHelper;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
