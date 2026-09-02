@@ -1,0 +1,26 @@
+plugins {
+    id 'com.android.application' version '8.11.1'
+}
+
+android {
+    namespace 'ps.reso.instaeclipse.plugins.pfp'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'ps.reso.instaeclipse.plugins.pfp'
+        minSdk 28
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    compileOnly project(':plugin-api')
+    compileOnly files('../app/libs/api-82.jar')
+}
