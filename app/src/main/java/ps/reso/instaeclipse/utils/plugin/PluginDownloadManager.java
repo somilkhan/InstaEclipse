@@ -33,6 +33,8 @@ public final class PluginDownloadManager {
         File dir = new File(context.getFilesDir(), PENDING_DIR);
         if (!dir.exists() && !dir.mkdirs()) throw new IllegalStateException("plugin staging unavailable");
         File target = new File(dir, id + "-" + version + ".apk");
+        if (target.exists() && !target.delete()) throw new IllegalStateException("old plugin package cannot be replaced");
+
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setConnectTimeout(10000);
         connection.setReadTimeout(30000);
@@ -43,6 +45,9 @@ public final class PluginDownloadManager {
             int response = connection.getResponseCode();
             if (response < 200 || response >= 300) throw new IllegalStateException("HTTP " + response);
             try (InputStream input = connection.getInputStream(); FileOutputStream output = new FileOutputStream(target)) {
+                // Android 14+ requires dynamically loaded code to be read-only; make the
+                // staging file immutable before writing to close the overwrite race.
+                if (!target.setReadOnly()) throw new SecurityException("plugin staging cannot be made read-only");
                 byte[] buffer = new byte[32 * 1024];
                 int read;
                 while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
@@ -51,7 +56,6 @@ public final class PluginDownloadManager {
         } finally {
             connection.disconnect();
         }
-        target.setReadOnly();
         File checksum = new File(dir, target.getName() + ".sha256");
         try (FileOutputStream output = new FileOutputStream(checksum)) {
             output.write((sha256 == null ? "" : sha256).getBytes(StandardCharsets.UTF_8));
