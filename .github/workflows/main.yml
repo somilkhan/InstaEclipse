@@ -60,27 +60,17 @@ jobs:
       - name: Run Android lint
         run: ./gradlew lintDebug --stacktrace
 
-      - name: Build Debug APKs
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
 
-      - name: Verify APKs exist
-        run: |
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          test -s plugin-pfp/build/outputs/apk/debug/plugin-pfp-debug.apk
+      - name: Verify Core APK exists
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload Core APK
         uses: actions/upload-artifact@v4
         with:
           name: instaeclipse-debug-${{ github.sha }}
           path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload PFP plugin APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: instaeclipse-pfp-plugin-debug-${{ github.sha }}
-          path: plugin-pfp/build/outputs/apk/debug/plugin-pfp-debug.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -92,6 +82,5 @@ jobs:
           path: |
             app/build/reports/**
             app/build/test-results/**
-            plugin-pfp/build/reports/**
           if-no-files-found: ignore
           retention-days: 7
