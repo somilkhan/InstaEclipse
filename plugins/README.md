@@ -32,3 +32,5 @@ Publish the next semantic version using the same tag format. For example:
 The workflow replaces that plugin's catalog entry with v1.2.0. Installed Core users will see the newer version in Feature Hub and can update the plugin independently.
 
 Core signing identity remains the trust boundary: plugin APKs must use the same trusted signing certificate as Core.
+
+CI verification is intentionally triggered by registry/plugin changes on the stable branch; workflow-only edits do not rely on path-filter self-triggering.
