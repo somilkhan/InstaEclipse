@@ -20,6 +20,7 @@ permissions:
 
 env:
   PLUGIN_ROOT: plugins
+  CATALOG_BRANCH: stability/latest-instagram
 
 jobs:
   release-plugin:
@@ -45,8 +46,11 @@ jobs:
           fi
           [[ "$ID" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || { echo "Invalid plugin id"; exit 1; }
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version must be semver X.Y.Z"; exit 1; }
+          IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
+          CODE=$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))
           echo "PLUGIN_ID=$ID" >> "$GITHUB_ENV"
           echo "PLUGIN_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "PLUGIN_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
 
       - name: Load plugin definition
         shell: bash
@@ -55,14 +59,14 @@ jobs:
           MANIFEST="$PLUGIN_ROOT/$PLUGIN_ID/plugin.json"
           [[ -f "$MANIFEST" ]] || { echo "Missing $MANIFEST"; exit 1; }
           python3 - "$MANIFEST" <<'PY'
-          import json, pathlib, sys
+          import json, pathlib, sys, os
           p = pathlib.Path(sys.argv[1]); d = json.loads(p.read_text())
           required = ['schema','id','name','description','min_core_api','max_core_api','entrypoint','min_instagram_version','max_instagram_version','module']
           missing = [x for x in required if x not in d]
           if missing: raise SystemExit(f"Missing manifest fields: {', '.join(missing)}")
-          if d['id'] != __import__('os').environ['PLUGIN_ID']: raise SystemExit('Manifest id does not match release id')
+          if d['id'] != os.environ['PLUGIN_ID']: raise SystemExit('Manifest id does not match release id')
           if d['schema'] != 1: raise SystemExit('Unsupported plugin schema')
-          if d['module'].strip() == '': raise SystemExit('Manifest module is empty')
+          if not str(d['module']).strip(): raise SystemExit('Manifest module is empty')
           PY
           echo "PLUGIN_MANIFEST=$MANIFEST" >> "$GITHUB_ENV"
           echo "PLUGIN_MODULE=$(python3 -c 'import json,os; print(json.load(open(os.environ["PLUGIN_MANIFEST"]))["module"])')" >> "$GITHUB_ENV"
@@ -88,7 +92,7 @@ jobs:
       - name: Build debug artifact
         run: |
           chmod +x ./gradlew
-          ./gradlew ":$PLUGIN_MODULE:assembleDebug" -PpluginVersion="$PLUGIN_VERSION" -PpluginVersionCode="$((10#$PLUGIN_VERSION_MAJOR * 10000 + 10#$PLUGIN_VERSION_MINOR * 100 + 10#$PLUGIN_VERSION_PATCH))" --no-daemon
+          ./gradlew ":$PLUGIN_MODULE:assembleDebug" -PpluginVersion="$PLUGIN_VERSION" -PpluginVersionCode="$PLUGIN_VERSION_CODE" --no-daemon
 
       - name: Build and sign release artifact
         env:
@@ -124,26 +128,24 @@ jobs:
             --notes "Signed InstaEclipse executable plugin. Requires the compatible InstaEclipse Core API and signing identity declared by the plugin manifest."
 
       - name: Update live catalog
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$CATALOG_BRANCH"
+          git checkout "$CATALOG_BRANCH"
           python3 - "$PLUGIN_MANIFEST" <<'PY'
           import json, pathlib, os
           manifest = json.loads(pathlib.Path(os.environ['PLUGIN_MANIFEST']).read_text())
           apk = f"instaeclipse-{os.environ['PLUGIN_ID']}-{os.environ['PLUGIN_VERSION']}.apk"
-          manifest.update({
-            'version': os.environ['PLUGIN_VERSION'],
-            'download_url': f"https://github.com/${{ github.repository }}/releases/download/plugin/{os.environ['PLUGIN_ID']}/v{os.environ['PLUGIN_VERSION']}/{apk}",
-            'sha256_url': f"https://github.com/${{ github.repository }}/releases/download/plugin/{os.environ['PLUGIN_ID']}/v{os.environ['PLUGIN_VERSION']}/SHA256SUMS-release.txt"
-          })
+          tag = f"plugin/{os.environ['PLUGIN_ID']}/v{os.environ['PLUGIN_VERSION']}"
+          base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}"
+          manifest.update({'version': os.environ['PLUGIN_VERSION'], 'download_url': f'{base}/{apk}', 'sha256_url': f'{base}/SHA256SUMS-release.txt'})
           path = pathlib.Path('plugins/catalog.json')
           catalog = json.loads(path.read_text()) if path.exists() else {'schema': 1, 'core_api': 1, 'plugins': []}
           entries = [p for p in catalog.get('plugins', []) if p.get('id') != manifest['id']]
-          public = {k:v for k,v in manifest.items() if k not in {'schema','entrypoint','module'}}
+          public = {k: v for k, v in manifest.items() if k not in {'schema', 'entrypoint', 'module'}}
           public['id'] = manifest['id']
           entries.append(public)
           entries.sort(key=lambda p: p['id'])
@@ -152,4 +154,4 @@ jobs:
           PY
           git add plugins/catalog.json
           git commit -m "chore(plugin): publish ${PLUGIN_ID} v${PLUGIN_VERSION} to catalog" || exit 0
-          git push origin HEAD:${GITHUB_REF_NAME%%/*}
+          git push origin "$CATALOG_BRANCH"
