@@ -7,6 +7,7 @@
   "min_core_api": 1,
   "max_core_api": 1,
   "entrypoint": "ps.reso.instaeclipse.plugins.pfp.PfpDownloaderPlugin",
+  "module": "plugin-pfp",
   "min_instagram_version": 384000000,
   "max_instagram_version": 385999999
 }
