@@ -37,9 +37,11 @@ public final class PluginManager {
     public static final String ACTION_REQUEST_PENDING = "ps.reso.instaeclipse.ACTION_REQUEST_PENDING_PLUGIN";
     public static final String ACTION_PLUGIN_INSTALLED = "ps.reso.instaeclipse.ACTION_PLUGIN_INSTALLED";
     public static final String ACTION_RESTART_INSTAGRAM = "ps.reso.instaeclipse.ACTION_RESTART_INSTAGRAM";
+    public static final String RESTART_PERMISSION = "ps.reso.instaeclipse.permission.RESTART_INSTAGRAM";
     public static final String EXTRA_URI = "plugin_uri";
     public static final String EXTRA_ID = "plugin_id";
     public static final String EXTRA_VERSION = "plugin_version";
+    public static final String EXTRA_PACKAGE = "plugin_package";
     public static final String EXTRA_SHA256 = "plugin_sha256";
     public static final String META_PLUGIN = "ps.reso.instaeclipse.plugin";
     public static final String META_PLUGIN_ID = "ps.reso.instaeclipse.plugin.id";
@@ -76,12 +78,14 @@ public final class PluginManager {
     }
 
     public static boolean installFromUri(Context context, ClassLoader ignored, String ignoredInstagramVersion,
-                                         Uri uri, String expectedId, String expectedVersion, String expectedSha256) {
+                                         Uri uri, String expectedId, String expectedVersion,
+                                         String expectedPackageName, String expectedSha256) {
         try {
             Intent intent = new Intent(context, PluginInstallActivity.class)
                     .setData(uri)
                     .putExtra(EXTRA_ID, expectedId)
                     .putExtra(EXTRA_VERSION, expectedVersion)
+                    .putExtra(EXTRA_PACKAGE, expectedPackageName)
                     .putExtra(EXTRA_SHA256, expectedSha256 == null ? "" : expectedSha256)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
             context.startActivity(intent);
@@ -92,9 +96,7 @@ public final class PluginManager {
         }
     }
 
-    public static boolean isInstalled(Context context, String id) {
-        return findPlugin(context, id) != null;
-    }
+    public static boolean isInstalled(Context context, String id) { return findPlugin(context, id) != null; }
 
     public static String getInstalledVersion(Context context, String id) {
         PackageInfo info = findPlugin(context, id);
@@ -127,20 +129,13 @@ public final class PluginManager {
     public static void requestUninstall(Context context, String id) {
         PackageInfo info = findPlugin(context, id);
         if (info == null) return;
-        try {
-            context.getSharedPreferences(PLUGIN_PREFS, Context.MODE_PRIVATE)
-                    .edit().remove("enabled_" + id).apply();
-        } catch (Throwable ignored) {}
         context.startActivity(new Intent(Intent.ACTION_UNINSTALL_PACKAGE,
                 Uri.parse("package:" + info.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 
-    /** Backward-compatible API; removal goes through Android's user-authorized package uninstall flow. */
-    public static void uninstall(Context context, String id) {
-        requestUninstall(context, id);
-    }
+    public static void uninstall(Context context, String id) { requestUninstall(context, id); }
 
-    /** Restarts the currently installed supported Instagram package so plugin state is re-read by the Xposed process. */
+    /** Stops the injected Instagram process through its trusted Xposed receiver, then relaunches it. */
     public static boolean restartInstagram(Context context) {
         try {
             String packageName = null;
@@ -156,9 +151,7 @@ public final class PluginManager {
                 return false;
             }
 
-            Intent stop = new Intent(ACTION_RESTART_INSTAGRAM).setPackage(packageName);
-            context.sendBroadcast(stop);
-
+            context.sendBroadcast(new Intent(ACTION_RESTART_INSTAGRAM).setPackage(packageName));
             final String target = packageName;
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 try {
@@ -233,17 +226,16 @@ public final class PluginManager {
             @Override public void onReceive(Context ctx, Intent intent) {
                 if (!ACTION_RESTART_INSTAGRAM.equals(intent.getAction())) return;
                 ModuleLog.line("(InstaEclipse | Plugin): restart requested; stopping Instagram process");
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    android.os.Process.killProcess(android.os.Process.myPid());
-                }, 100L);
+                new Handler(Looper.getMainLooper()).postDelayed(() ->
+                        android.os.Process.killProcess(android.os.Process.myPid()), 100L);
             }
         };
         android.content.IntentFilter filter = new android.content.IntentFilter(ACTION_RESTART_INSTAGRAM);
         try {
             if (Build.VERSION.SDK_INT >= 33) {
-                context.registerReceiver(receiver, filter, null, null, Context.RECEIVER_EXPORTED);
+                context.registerReceiver(receiver, filter, RESTART_PERMISSION, null, Context.RECEIVER_EXPORTED);
             } else {
-                context.registerReceiver(receiver, filter, null, null);
+                context.registerReceiver(receiver, filter, RESTART_PERMISSION, null);
             }
             restartReceiverRegistered = true;
         } catch (Throwable error) {
@@ -257,9 +249,7 @@ public final class PluginManager {
                     Module.moduleSourceDir, PackageManager.GET_SIGNING_CERTIFICATES);
             return core != null && core.signingInfo != null && plugin.signingInfo != null
                     && sameSigner(core.signingInfo, plugin.signingInfo);
-        } catch (Throwable ignored) {
-            return false;
-        }
+        } catch (Throwable ignored) { return false; }
     }
 
     private static boolean sameSigner(SigningInfo a, SigningInfo b) throws Exception {
