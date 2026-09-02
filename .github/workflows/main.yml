@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v4
