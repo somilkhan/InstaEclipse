@@ -9,6 +9,7 @@ import androidx.core.content.FileProvider;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -21,6 +22,10 @@ public final class PluginDownloadManager {
     private static final String AUTHORITY_SUFFIX = ".fileprovider";
 
     private PluginDownloadManager() {}
+
+    public static boolean isQueued(Context context, String id, String version) {
+        return new File(new File(context.getFilesDir(), PENDING_DIR), id + "-" + version + ".apk").exists();
+    }
 
     public static void downloadAndQueue(Context context, String id, String version, String url,
                                         String sha256, String instagramVersion) throws Exception {
@@ -47,6 +52,11 @@ public final class PluginDownloadManager {
             connection.disconnect();
         }
         target.setReadOnly();
+        File checksum = new File(dir, target.getName() + ".sha256");
+        try (FileOutputStream output = new FileOutputStream(checksum)) {
+            output.write((sha256 == null ? "" : sha256).getBytes(StandardCharsets.UTF_8));
+        }
+        checksum.setReadOnly();
         transferFile(context, target, id, version, sha256);
     }
 
@@ -60,17 +70,33 @@ public final class PluginDownloadManager {
             if (split <= 0) continue;
             String id = name.substring(0, split);
             String version = name.substring(split + 1, name.length() - 4);
-            transferFile(context, file, id, version, "");
+            String sha256 = "";
+            File checksum = new File(dir, name + ".sha256");
+            if (checksum.exists()) {
+                try (InputStream input = new java.io.FileInputStream(checksum)) {
+                    sha256 = new String(input.readAllBytes(), StandardCharsets.UTF_8).trim();
+                } catch (Throwable ignored) {}
+            }
+            transferFile(context, file, id, version, sha256);
         }
+    }
+
+    public static void markInstalled(Context context, String id, String version) {
+        File dir = new File(context.getFilesDir(), PENDING_DIR);
+        new File(dir, id + "-" + version + ".apk").delete();
+        new File(dir, id + "-" + version + ".apk.sha256").delete();
+        context.getSharedPreferences("instaeclipse_cache", Context.MODE_PRIVATE)
+                .edit().putBoolean("plugin_installed_" + id, true).apply();
     }
 
     private static void transferFile(Context context, File file, String id, String version, String sha256) {
         try {
             String authority = context.getPackageName() + AUTHORITY_SUFFIX;
             Uri uri = FileProvider.getUriForFile(context, authority, file);
-            context.grantUriPermission(CommonUtils.SUPPORTED_PACKAGES.get(0), uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            String instagramPackage = CommonUtils.SUPPORTED_PACKAGES.get(0);
+            context.grantUriPermission(instagramPackage, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
             Intent intent = new Intent(PluginManager.ACTION_INSTALL_PLUGIN);
-            intent.setPackage(CommonUtils.SUPPORTED_PACKAGES.get(0));
+            intent.setPackage(instagramPackage);
             intent.setData(uri);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             intent.putExtra(PluginManager.EXTRA_URI, uri.toString());
