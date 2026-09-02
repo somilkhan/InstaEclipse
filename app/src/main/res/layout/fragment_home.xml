@@ -1,334 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/black"
-    android:clipToPadding="false"
-    android:fillViewport="true"
-    android:scrollbars="none">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="4dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="4dp"
-        android:paddingBottom="24dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:layout_marginBottom="4dp"
-            android:text="@string/app_name"
-            android:textAppearance="?attr/textAppearanceHeadlineSmall"
-            android:textColor="?attr/colorOnSurface"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:layout_marginBottom="16dp"
-            android:text="@string/home_subtitle"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/instagram_status_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            app:cardCornerRadius="22dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="0dp">
-
-            <androidx.constraintlayout.widget.ConstraintLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="16dp">
-
-                <ImageView
-                    android:id="@+id/instagram_logo"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:contentDescription="@string/instagram_logo"
-                    android:src="@drawable/ic_instagram_logo"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:tint="?attr/colorOnPrimaryContainer" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
-                    android:layout_marginEnd="8dp"
-                    android:orientation="vertical"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toStartOf="@id/instagram_info_icon"
-                    app:layout_constraintStart_toEndOf="@id/instagram_logo"
-                    app:layout_constraintTop_toTopOf="parent">
-
-                    <TextView
-                        android:id="@+id/instagram_status_text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/checking_instagram"
-                        android:textColor="?attr/colorOnPrimaryContainer"
-                        android:textSize="15sp" />
-
-                    <TextView
-                        android:id="@+id/instagram_variant_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textAppearance="?attr/textAppearanceLabelSmall"
-                        android:textColor="?attr/colorOnPrimaryContainer"
-                        android:alpha="0.75"
-                        android:visibility="gone" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/instagram_multi_button"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:minHeight="0dp"
-                        android:paddingStart="10dp"
-                        android:paddingEnd="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp"
-                        android:text="@string/multiple_versions_detected"
-                        android:textAppearance="?attr/textAppearanceLabelSmall"
-                        app:cornerRadius="8dp"
-                        android:visibility="gone" />
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/black" android:clipToPadding="false" android:fillViewport="true" android:scrollbars="none">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="4dp" android:paddingTop="8dp" android:paddingEnd="4dp" android:paddingBottom="24dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:layout_marginBottom="4dp" android:text="@string/app_name" android:textAppearance="?attr/textAppearanceHeadlineSmall" android:textColor="?attr/colorOnSurface" android:textStyle="bold" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:layout_marginBottom="16dp" android:text="A cleaner control center for your Instagram setup." android:textAppearance="?attr/textAppearanceBodyMedium" android:textColor="?attr/colorOnSurfaceVariant" />
+        <com.google.android.material.card.MaterialCardView android:id="@+id/instagram_status_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="10dp" app:cardCornerRadius="22dp" app:cardElevation="0dp" app:strokeWidth="0dp">
+            <androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp">
+                <ImageView android:id="@+id/instagram_logo" android:layout_width="30dp" android:layout_height="30dp" android:contentDescription="@string/instagram_logo" android:src="@drawable/ic_instagram_logo" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:tint="?attr/colorOnPrimaryContainer" />
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_marginEnd="8dp" android:orientation="vertical" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toStartOf="@id/instagram_info_icon" app:layout_constraintStart_toEndOf="@id/instagram_logo" app:layout_constraintTop_toTopOf="parent">
+                    <TextView android:id="@+id/instagram_status_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/checking_instagram" android:textColor="?attr/colorOnPrimaryContainer" android:textSize="15sp" />
+                    <TextView android:id="@+id/instagram_variant_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textAppearance="?attr/textAppearanceLabelSmall" android:textColor="?attr/colorOnPrimaryContainer" android:alpha="0.75" android:visibility="gone" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/instagram_multi_button" style="@style/Widget.Material3.Button.TonalButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:minHeight="0dp" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="4dp" android:paddingBottom="4dp" android:text="@string/multiple_versions_detected" android:textAppearance="?attr/textAppearanceLabelSmall" app:cornerRadius="8dp" android:visibility="gone" />
                 </LinearLayout>
-
-                <ImageView
-                    android:id="@+id/instagram_info_icon"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/instagram_info"
-                    android:padding="7dp"
-                    android:src="@drawable/ic_info"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:tint="?attr/colorOnPrimaryContainer"
-                    tools:ignore="TouchTargetSizeCheck" />
+                <ImageView android:id="@+id/instagram_info_icon" android:layout_width="40dp" android:layout_height="40dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/instagram_info" android:padding="7dp" android:src="@drawable/ic_info" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="parent" app:tint="?attr/colorOnPrimaryContainer" tools:ignore="TouchTargetSizeCheck" />
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/feature_hub_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:foreground="?attr/selectableItemBackground"
-            app:cardBackgroundColor="#17171A"
-            app:cardCornerRadius="22dp"
-            app:cardElevation="0dp"
-            app:strokeColor="#29292E"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="16dp">
-
-                <ImageView
-                    android:layout_width="42dp"
-                    android:layout_height="42dp"
-                    android:background="@drawable/bg_feature_hub_icon"
-                    android:contentDescription="@string/feature_hub"
-                    android:padding="10dp"
-                    android:src="@drawable/ic_sparkle"
-                    app:tint="@color/accent_blue" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/feature_hub"
-                        android:textAppearance="?attr/textAppearanceTitleMedium"
-                        android:textColor="?attr/colorOnSurface"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="@string/feature_hub_subtitle"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+        <com.google.android.material.card.MaterialCardView android:id="@+id/feature_hub_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp" android:clickable="true" android:focusable="true" android:foreground="?attr/selectableItemBackground" app:cardBackgroundColor="#17171A" app:cardCornerRadius="22dp" app:cardElevation="0dp" app:strokeColor="#29292E" app:strokeWidth="1dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:padding="16dp">
+                <ImageView android:layout_width="42dp" android:layout_height="42dp" android:background="@drawable/bg_feature_hub_icon" android:contentDescription="Feature Hub" android:padding="10dp" android:src="@drawable/ic_sparkle" app:tint="@color/accent_blue" />
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:layout_marginEnd="8dp" android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Feature Hub" android:textAppearance="?attr/textAppearanceTitleMedium" android:textColor="?attr/colorOnSurface" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Install feature packs and check the latest catalog." android:textAppearance="?attr/textAppearanceBodySmall" android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="›"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:textSize="28sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="28sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="12dp">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/launch_instagram_button"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="5dp"
-                android:layout_weight="1"
-                android:text="@string/launch_instagram"
-                app:cornerRadius="14dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/download_instagram_button"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="5dp"
-                android:layout_weight="1"
-                android:text="@string/download_apk"
-                app:cornerRadius="14dp" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="12dp">
+            <com.google.android.material.button.MaterialButton android:id="@+id/launch_instagram_button" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginEnd="5dp" android:layout_weight="1" android:text="@string/launch_instagram" app:cornerRadius="14dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/download_instagram_button" style="@style/Widget.Material3.Button.TonalButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="5dp" android:layout_weight="1" android:text="@string/download_apk" app:cornerRadius="14dp" />
         </LinearLayout>
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/how_to_use_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="#17171A"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="0dp">
-            <RelativeLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="16dp">
-                <TextView
-                    android:id="@+id/how_to_use_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/how_to_use"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textStyle="bold" />
-                <ImageView
-                    android:id="@+id/search_icon"
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:padding="6dp"
-                    android:src="@drawable/ic_search"
-                    app:tint="?attr/colorPrimary" />
-                <TextView
-                    android:id="@+id/instruction_text"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_below="@id/how_to_use_title"
-                    android:layout_marginTop="5dp"
-                    android:layout_marginEnd="8dp"
-                    android:layout_toStartOf="@id/search_icon"
-                    android:text="@string/usage_instructions"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
-            </RelativeLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="#17171A"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="0dp">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    android:text="@string/contributors"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textStyle="bold" />
-                <HorizontalScrollView
-                    android:id="@+id/contributors_scroll"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:clipToPadding="false"
-                    android:scrollbars="none">
-                    <LinearLayout
-                        android:id="@+id/contributors_container"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:paddingEnd="4dp" />
-                </HorizontalScrollView>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardBackgroundColor="#17171A"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="0dp">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    android:text="@string/special_thanks"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textStyle="bold" />
-                <HorizontalScrollView
-                    android:id="@+id/special_thanks_scroll"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:clipToPadding="false"
-                    android:scrollbars="none">
-                    <LinearLayout
-                        android:id="@+id/special_thanks_container"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:paddingEnd="4dp" />
-                </HorizontalScrollView>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.card.MaterialCardView android:id="@+id/how_to_use_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp" app:cardBackgroundColor="#17171A" app:cardCornerRadius="20dp" app:cardElevation="0dp" app:strokeWidth="0dp"><RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp"><TextView android:id="@+id/how_to_use_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/how_to_use" android:textAppearance="?attr/textAppearanceTitleMedium" android:textColor="?attr/colorOnSurface" android:textStyle="bold" /><ImageView android:id="@+id/search_icon" android:layout_width="34dp" android:layout_height="34dp" android:layout_alignParentEnd="true" android:layout_centerVertical="true" android:padding="6dp" android:src="@drawable/ic_search" app:tint="?attr/colorPrimary" /><TextView android:id="@+id/instruction_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_below="@id/how_to_use_title" android:layout_marginTop="5dp" android:layout_marginEnd="8dp" android:layout_toStartOf="@id/search_icon" android:text="@string/usage_instructions" android:textAppearance="?attr/textAppearanceBodyMedium" android:textColor="?attr/colorOnSurfaceVariant" /></RelativeLayout></com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp" app:cardBackgroundColor="#17171A" app:cardCornerRadius="20dp" app:cardElevation="0dp" app:strokeWidth="0dp"><LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="12dp" android:text="@string/contributors" android:textAppearance="?attr/textAppearanceTitleMedium" android:textColor="?attr/colorOnSurface" android:textStyle="bold" /><HorizontalScrollView android:id="@+id/contributors_scroll" android:layout_width="match_parent" android:layout_height="wrap_content" android:clipToPadding="false" android:scrollbars="none"><LinearLayout android:id="@+id/contributors_container" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingEnd="4dp" /></HorizontalScrollView></LinearLayout></com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content" app:cardBackgroundColor="#17171A" app:cardCornerRadius="20dp" app:cardElevation="0dp" app:strokeWidth="0dp"><LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="12dp" android:text="@string/special_thanks" android:textAppearance="?attr/textAppearanceTitleMedium" android:textColor="?attr/colorOnSurface" android:textStyle="bold" /><HorizontalScrollView android:id="@+id/special_thanks_scroll" android:layout_width="match_parent" android:layout_height="wrap_content" android:clipToPadding="false" android:scrollbars="none"><LinearLayout android:id="@+id/special_thanks_container" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingEnd="4dp" /></HorizontalScrollView></LinearLayout></com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
