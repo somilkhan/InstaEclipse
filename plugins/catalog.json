@@ -1,24 +1,24 @@
 {
   "schema": 1,
-  "catalog_version": 3,
+  "catalog_version": 4,
   "plugins": [
     {
       "id": "pfp-downloader",
       "name": "PFP Downloader Pack",
-      "description": "Download expanded Instagram profile pictures without reinstalling InstaEclipse Core.",
-      "version": "1.0.0",
+      "description": "Download profile pictures from Instagram account surfaces without reinstalling InstaEclipse Core.",
+      "version": "1.1.0",
       "min_core_api": 1,
       "max_core_api": 1,
-      "min_instagram_version": "384000000",
-      "max_instagram_version": "385999999",
-      "packageName": "ps.reso.instaeclipse.plugin.pfp",
-      "entrypoint": "ps.reso.instaeclipse.plugin.pfp.PfpPlugin",
+      "entrypoint": "ps.reso.instaeclipse.plugins.pfp.PfpDownloaderPlugin",
+      "packageName": "ps.reso.instaeclipse.plugins.pfp",
+      "min_instagram_version": 384000000,
+      "max_instagram_version": 385999999,
       "channel": "stable",
       "remote": true,
-      "download_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin-pfp-v1.0.0/instaeclipse-pfp-1.0.0.apk",
-      "sha256_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin-pfp-v1.0.0/SHA256SUMS-release.txt",
-      "release_notes": "Initial independent PFP Downloader release.",
-      "mandatory": false
+      "release_notes": "Adds profile-picture download support across Instagram account avatar surfaces, including profile headers and account avatars outside the expanded picture viewer. Production release. Automatic signed release pipeline with explicit Android build-tools verification.",
+      "mandatory": false,
+      "download_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin/pfp-downloader/v1.1.0/instaeclipse-pfp-downloader-1.1.0.apk",
+      "sha256_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin/pfp-downloader/v1.1.0/SHA256SUMS-release.txt"
     }
   ]
 }
