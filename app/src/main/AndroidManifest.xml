@@ -23,6 +23,7 @@
         <receiver android:name=".utils.plugin.PluginTransferReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="ps.reso.instaeclipse.ACTION_REQUEST_PENDING_PLUGIN" />
+                <action android:name="ps.reso.instaeclipse.ACTION_PLUGIN_INSTALLED" />
             </intent-filter>
         </receiver>
         <provider
