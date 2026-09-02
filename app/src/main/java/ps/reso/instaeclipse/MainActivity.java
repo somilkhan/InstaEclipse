@@ -19,14 +19,12 @@ import ps.reso.instaeclipse.fragments.HelpFragment;
 import ps.reso.instaeclipse.fragments.HomeFragment;
 import ps.reso.instaeclipse.fragments.LoggingFragment;
 import ps.reso.instaeclipse.utils.log.Logging;
-import ps.reso.instaeclipse.utils.plugin.PluginHubActivity;
 import ps.reso.instaeclipse.utils.version.VersionCheckUtility;
 
 public class MainActivity extends AppCompatActivity {
     private static final int STORAGE_PERMISSION_REQUEST = 4101;
     private static final String PREFS = "instaeclipse_setup";
     private static final String KEY_STORAGE_PROMPTED = "storage_permission_prompted";
-    private static final int MENU_PLUGINS = 9101;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
@@ -57,16 +55,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override public boolean onCreateOptionsMenu(Menu menu) {
-        MenuItem plugins = menu.add(Menu.NONE, MENU_PLUGINS, Menu.NONE, "Plugins");
-        plugins.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-        return true;
+        return super.onCreateOptionsMenu(menu);
     }
 
     @Override public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == MENU_PLUGINS) {
-            startActivity(new android.content.Intent(this, PluginHubActivity.class));
-            return true;
-        }
         return super.onOptionsItemSelected(item);
     }
 
