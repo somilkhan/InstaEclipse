@@ -1,6 +1,7 @@
 package ps.reso.instaeclipse.mods.ui;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -35,11 +36,12 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.mods.media.FeedVideoDownloadHook;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/** Adds a native-looking InstaEclipse action to Instagram profile headers. */
+/** Adds a compact InstaEclipse action beside Instagram's profile header actions. */
 public final class ProfilePageToolsHook {
     private static final String BUTTON_TAG = "ie_profile_tools_button";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
@@ -59,7 +61,6 @@ public final class ProfilePageToolsHook {
         ModuleLog.line("(InstaEclipse | ProfileTools): installer ready");
     }
 
-    /** Called from the existing UI lifecycle. */
     public static void setup(Activity activity) {
         if (!FeatureFlags.enableProfileDownload || activity == null || activity.isFinishing()) return;
         MAIN.post(() -> wireWhenReady(activity));
@@ -82,7 +83,7 @@ public final class ProfilePageToolsHook {
             root.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
                 int attempts;
                 @Override public void onGlobalLayout() {
-                    if (++attempts > 18 || activity.isFinishing()) {
+                    if (++attempts > 20 || activity.isFinishing()) {
                         root.getViewTreeObserver().removeOnGlobalLayoutListener(this);
                         return;
                     }
@@ -103,10 +104,11 @@ public final class ProfilePageToolsHook {
 
         ImageButton button = new ImageButton(activity);
         button.setTag(BUTTON_TAG);
-        button.setImageResource(android.R.drawable.ic_menu_manage);
+        button.setImageResource(R.drawable.ic_profile_tools);
         button.setBackgroundResource(android.R.drawable.list_selector_background_transparent);
         button.setContentDescription("InstaEclipse profile tools");
-        button.setPadding(dp(activity, 9), dp(activity, 9), dp(activity, 9), dp(activity, 9));
+        button.setPadding(dp(activity, 8), dp(activity, 8), dp(activity, 8), dp(activity, 8));
+
         try {
             TypedValue tv = new TypedValue();
             if (activity.getTheme().resolveAttribute(android.R.attr.textColorPrimary, tv, true)) {
@@ -118,7 +120,8 @@ public final class ProfilePageToolsHook {
         int size = target.anchor.getMeasuredHeight() > 0 ? target.anchor.getMeasuredHeight() : dp(activity, 40);
         if (parent instanceof LinearLayout) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-            if (target.anchor.getLayoutParams() instanceof ViewGroup.MarginLayoutParams old) {
+            if (target.anchor.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams old = (ViewGroup.MarginLayoutParams) target.anchor.getLayoutParams();
                 lp.leftMargin = old.leftMargin;
                 lp.rightMargin = old.rightMargin;
                 lp.topMargin = old.topMargin;
@@ -141,7 +144,7 @@ public final class ProfilePageToolsHook {
     }
 
     private static InjectionTarget findInjectionTarget(View root) {
-        List<View> views = flatten(root, 650);
+        List<View> views = flatten(root, 750);
         View notification = null;
         View options = null;
         int screenHeight = Math.max(root.getHeight(), 1);
@@ -153,8 +156,10 @@ public final class ProfilePageToolsHook {
             if (loc[1] > screenHeight * 0.45f) continue;
             String marker = normalized(description(v) + " " + resourceName(v));
             if (containsAny(marker, "notification", "notifications")) notification = betterRight(notification, v);
-            if (containsAny(marker, "more options", "more_option", "overflow", "profile options", "options")) options = betterRight(options, v);
+            if (containsAny(marker, "more options", "more_option", "overflow", "profile options")) options = betterRight(options, v);
         }
+
+        if (hasOwnProfileMarker(views)) return null;
 
         View anchor = betterRight(notification, options);
         if (anchor == null || !isProfileContext(views)) return null;
@@ -165,13 +170,22 @@ public final class ProfilePageToolsHook {
         return new InjectionTarget(root, parent, anchor, idx + 1);
     }
 
+    private static boolean hasOwnProfileMarker(List<View> views) {
+        for (View v : views) {
+            if (!v.isShown()) continue;
+            String marker = normalized(description(v) + " " + resourceName(v) + " " + text(v));
+            if (containsAny(marker, "edit profile", "edit_profile", "professional dashboard", "profile dashboard")) return true;
+        }
+        return false;
+    }
+
     private static boolean isProfileContext(List<View> views) {
         int profileScore = 0;
         int followScore = 0;
         for (View v : views) {
             if (!v.isShown()) continue;
             String marker = normalized(description(v) + " " + resourceName(v) + " " + v.getClass().getName());
-            if (containsAny(marker, "profile", "avatar", "profile picture", "user profile")) profileScore += 2;
+            if (containsAny(marker, "profile", "avatar", "profile picture", "user profile", "account_avatar")) profileScore += 2;
             if (containsAny(marker, "follow", "following", "message")) followScore++;
         }
         return profileScore >= 2 || followScore >= 2;
@@ -179,7 +193,7 @@ public final class ProfilePageToolsHook {
 
     private static ViewGroup findActionLinearParent(View anchor) {
         View current = anchor;
-        for (int i = 0; i < 4 && current.getParent() instanceof ViewGroup; i++) {
+        for (int i = 0; i < 5 && current.getParent() instanceof ViewGroup; i++) {
             ViewGroup p = (ViewGroup) current.getParent();
             if (p instanceof LinearLayout && p.getChildCount() >= 2 && p.getChildCount() <= 12) return p;
             current = p;
@@ -202,28 +216,40 @@ public final class ProfilePageToolsHook {
     private static void showProfileTools(Activity activity, View root) {
         if (activity == null || activity.isFinishing()) return;
         ProfileData data = collectProfileData(root);
+
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(activity, 16), dp(activity, 8), dp(activity, 16), dp(activity, 8));
+        content.setPadding(dp(activity, 20), dp(activity, 12), dp(activity, 20), dp(activity, 12));
 
         TextView header = new TextView(activity);
-        header.setText(data.username == null || data.username.isEmpty() ? "Profile" : "@" + data.username);
+        header.setText(data.username == null || data.username.isEmpty() ? "Profile tools" : "@" + data.username);
         header.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
         header.setTypeface(null, android.graphics.Typeface.BOLD);
-        header.setPadding(dp(activity, 4), dp(activity, 8), dp(activity, 4), dp(activity, 12));
+        header.setTextColor(resolvePrimaryText(activity));
+        header.setPadding(dp(activity, 4), dp(activity, 4), dp(activity, 4), dp(activity, 14));
         content.addView(header);
 
-        addAction(content, activity, "Copy Bio", android.R.drawable.ic_menu_edit,
+        addAction(content, activity, "Copy Bio", R.drawable.ic_profile_bio,
                 data.bio != null && !data.bio.isEmpty(), () -> copy(activity, "Bio", data.bio));
-        addAction(content, activity, "Profile Download", android.R.drawable.ic_menu_save,
+        addAction(content, activity, "Profile Download", R.drawable.ic_profile_download,
                 data.profileImageUrl != null, () -> downloadProfile(activity, data));
-        addAction(content, activity, "Copy Username", android.R.drawable.ic_menu_myplaces,
+        addAction(content, activity, "Copy Username", R.drawable.ic_profile_username,
                 data.username != null && !data.username.isEmpty(), () -> copy(activity, "Username", data.username));
-        addAction(content, activity, "Follow Back", android.R.drawable.ic_input_add,
+        addAction(content, activity, "Follow Back", R.drawable.ic_profile_follow_back,
                 data.followBackView != null, () -> followBack(data.followBackView));
 
-        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(activity).setView(content).create();
+        Dialog dialog = new Dialog(activity);
+        dialog.setContentView(content);
         dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(roundBg(resolveSurface(activity), dp(activity, 24)));
+            dialog.getWindow().setDimAmount(0.32f);
+            dialog.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            android.view.WindowManager.LayoutParams lp = dialog.getWindow().getAttributes();
+            lp.width = Math.min(dp(activity, 380), activity.getResources().getDisplayMetrics().widthPixels - dp(activity, 32));
+            lp.gravity = Gravity.CENTER;
+            dialog.getWindow().setAttributes(lp);
+        }
     }
 
     private static void addAction(LinearLayout parent, Activity activity, String title, int icon,
@@ -231,27 +257,30 @@ public final class ProfilePageToolsHook {
         LinearLayout row = new LinearLayout(activity);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(activity, 8), dp(activity, 8), dp(activity, 8), dp(activity, 8));
-        row.setMinimumHeight(dp(activity, 54));
+        row.setPadding(dp(activity, 8), dp(activity, 5), dp(activity, 8), dp(activity, 5));
+        row.setMinimumHeight(dp(activity, 58));
         row.setEnabled(enabled);
         row.setAlpha(enabled ? 1f : 0.42f);
-        row.setBackground(roundBg(0x12000000, dp(activity, 16)));
+        row.setBackground(roundBg(resolveRowSurface(activity), dp(activity, 16)));
 
         ImageView iv = new ImageView(activity);
         iv.setImageResource(icon);
-        iv.setPadding(dp(activity, 8), dp(activity, 8), dp(activity, 8), dp(activity, 8));
-        row.addView(iv, new LinearLayout.LayoutParams(dp(activity, 42), dp(activity, 42)));
+        iv.setImageTintList(ColorStateList.valueOf(resolveAccent(activity)));
+        iv.setPadding(dp(activity, 9), dp(activity, 9), dp(activity, 9), dp(activity, 9));
+        row.addView(iv, new LinearLayout.LayoutParams(dp(activity, 44), dp(activity, 44)));
 
         TextView tv = new TextView(activity);
         tv.setText(title);
         tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        tv.setTextColor(resolvePrimaryText(activity));
         tv.setGravity(Gravity.CENTER_VERTICAL);
         tv.setPadding(dp(activity, 12), 0, 0, 0);
-        row.addView(tv, new LinearLayout.LayoutParams(0, dp(activity, 54), 1f));
+        row.addView(tv, new LinearLayout.LayoutParams(0, dp(activity, 58), 1f));
 
         if (enabled) row.setOnClickListener(v -> action.run());
-        parent.addView(row, new LinearLayout.LayoutParams(-1, dp(activity, 58)));
-        parent.addView(new View(activity), new LinearLayout.LayoutParams(1, dp(activity, 6)));
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, dp(activity, 62));
+        rowLp.bottomMargin = dp(activity, 6);
+        parent.addView(row, rowLp);
     }
 
     private static void copy(Activity activity, String label, String value) {
@@ -280,21 +309,24 @@ public final class ProfilePageToolsHook {
 
     private static ProfileData collectProfileData(View root) {
         ProfileData data = new ProfileData();
-        List<View> views = flatten(root, 900);
+        List<View> views = flatten(root, 1100);
         for (View v : views) {
             if (!v.isShown()) continue;
             String text = text(v);
             String desc = normalized(description(v) + " " + resourceName(v));
+
             if (data.followBackView == null && containsAny(desc, "follow back", "follow_back")) data.followBackView = v;
+
             if (v instanceof ImageView) {
                 String url = extractUrl(v);
                 if (url != null && (containsAny(desc, "profile", "avatar", "profile_pic") || isSquare(v))) {
                     if (data.profileImageUrl == null || containsAny(desc, "profile", "avatar")) data.profileImageUrl = url;
                 }
             }
+
             if (text != null && !text.isEmpty()) {
-                String lower = text.trim().toLowerCase(Locale.US);
-                if (data.username == null && looksLikeUsername(lower) && !lower.matches("\\d+")) data.username = text.trim();
+                String candidate = text.trim();
+                if (data.username == null && looksLikeUsername(candidate)) data.username = candidate;
             }
         }
 
@@ -336,11 +368,28 @@ public final class ProfilePageToolsHook {
         return s != null && s.length() >= 2 && s.length() <= 30 && s.matches("[a-zA-Z0-9._]+") && !s.matches("\\d+");
     }
 
-    private static String text(View v) { return v instanceof TextView tv && tv.getText() != null ? tv.getText().toString() : null; }
-    private static String description(View v) { CharSequence d = v.getContentDescription(); return d == null ? "" : d.toString(); }
-    private static String resourceName(View v) { try { return v.getResources().getResourceEntryName(v.getId()); } catch (Throwable ignored) { return ""; } }
-    private static String normalized(String s) { return s == null ? "" : s.toLowerCase(Locale.US).replace('-', '_'); }
-    private static boolean containsAny(String s, String... needles) { if (s == null) return false; for (String n : needles) if (s.contains(n)) return true; return false; }
+    private static String text(View v) {
+        return v instanceof TextView && ((TextView) v).getText() != null ? ((TextView) v).getText().toString() : null;
+    }
+
+    private static String description(View v) {
+        CharSequence d = v.getContentDescription();
+        return d == null ? "" : d.toString();
+    }
+
+    private static String resourceName(View v) {
+        try { return v.getResources().getResourceEntryName(v.getId()); } catch (Throwable ignored) { return ""; }
+    }
+
+    private static String normalized(String s) {
+        return s == null ? "" : s.toLowerCase(Locale.US).replace('-', '_');
+    }
+
+    private static boolean containsAny(String s, String... needles) {
+        if (s == null) return false;
+        for (String n : needles) if (s.contains(n)) return true;
+        return false;
+    }
 
     private static List<View> flatten(View root, int max) {
         List<View> out = new ArrayList<>();
@@ -349,12 +398,17 @@ public final class ProfilePageToolsHook {
         while (!q.isEmpty() && out.size() < max) {
             View v = q.removeFirst();
             out.add(v);
-            if (v instanceof ViewGroup vg) for (int i = 0; i < vg.getChildCount() && out.size() + q.size() < max; i++) q.addLast(vg.getChildAt(i));
+            if (v instanceof ViewGroup) {
+                ViewGroup vg = (ViewGroup) v;
+                for (int i = 0; i < vg.getChildCount() && out.size() + q.size() < max; i++) q.addLast(vg.getChildAt(i));
+            }
         }
         return out;
     }
 
-    private static boolean isSquare(View v) { return v.getWidth() > 0 && v.getHeight() > 0 && Math.abs(v.getWidth() - v.getHeight()) <= dp(v.getContext(), 10); }
+    private static boolean isSquare(View v) {
+        return v.getWidth() > 0 && v.getHeight() > 0 && Math.abs(v.getWidth() - v.getHeight()) <= dp(v.getContext(), 10);
+    }
 
     private static String extractUrl(View view) {
         Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -399,8 +453,8 @@ public final class ProfilePageToolsHook {
     }
 
     private static String inspectValue(Object value, Set<Object> visited, int depth) {
-        if (value instanceof String s) return validUrl(s);
-        if (value instanceof Uri u) return validUrl(u.toString());
+        if (value instanceof String) return validUrl((String) value);
+        if (value instanceof Uri) return validUrl(value.toString());
         return inspectObject(value, visited, depth + 1);
     }
 
@@ -422,18 +476,69 @@ public final class ProfilePageToolsHook {
     private static Activity activityFromContext(Context c) {
         Context current = c;
         while (current instanceof ContextWrapper) {
-            if (current instanceof Activity a) return a;
+            if (current instanceof Activity) return (Activity) current;
             current = ((ContextWrapper) current).getBaseContext();
         }
         return null;
     }
 
-    private static GradientDrawable roundBg(int color, int radius) { GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(radius); return d; }
-    private static int dp(Context c, int v) { return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, c.getResources().getDisplayMetrics()); }
+    private static int resolvePrimaryText(Context c) {
+        try {
+            TypedValue tv = new TypedValue();
+            if (c.getTheme().resolveAttribute(android.R.attr.textColorPrimary, tv, true)) {
+                return tv.resourceId != 0 ? c.getResources().getColor(tv.resourceId, c.getTheme()) : tv.data;
+            }
+        } catch (Throwable ignored) {}
+        return Color.WHITE;
+    }
+
+    private static int resolveSurface(Context c) {
+        try {
+            TypedValue tv = new TypedValue();
+            if (c.getTheme().resolveAttribute(android.R.attr.colorBackground, tv, true)) {
+                return tv.resourceId != 0 ? c.getResources().getColor(tv.resourceId, c.getTheme()) : tv.data;
+            }
+        } catch (Throwable ignored) {}
+        return 0xFF151515;
+    }
+
+    private static int resolveRowSurface(Context c) {
+        int bg = resolveSurface(c);
+        return Color.argb(220, Color.red(bg), Color.green(bg), Color.blue(bg));
+    }
+
+    private static int resolveAccent(Context c) {
+        try {
+            TypedValue tv = new TypedValue();
+            if (c.getTheme().resolveAttribute(android.R.attr.colorAccent, tv, true)) {
+                return tv.resourceId != 0 ? c.getResources().getColor(tv.resourceId, c.getTheme()) : tv.data;
+            }
+        } catch (Throwable ignored) {}
+        return 0xFF4EA1FF;
+    }
+
+    private static GradientDrawable roundBg(int color, int radius) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radius);
+        return d;
+    }
+
+    private static int dp(Context c, int v) {
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, c.getResources().getDisplayMetrics());
+    }
 
     private static final class InjectionTarget {
-        final View root; final ViewGroup parent; final View anchor; final int indexAfterAnchor;
-        InjectionTarget(View root, ViewGroup parent, View anchor, int indexAfterAnchor) { this.root = root; this.parent = parent; this.anchor = anchor; this.indexAfterAnchor = indexAfterAnchor; }
+        final View root;
+        final ViewGroup parent;
+        final View anchor;
+        final int indexAfterAnchor;
+        InjectionTarget(View root, ViewGroup parent, View anchor, int indexAfterAnchor) {
+            this.root = root;
+            this.parent = parent;
+            this.anchor = anchor;
+            this.indexAfterAnchor = indexAfterAnchor;
+        }
     }
 
     private static final class ProfileData {
