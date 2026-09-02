@@ -232,12 +232,15 @@ jobs:
           mkdir -p dist
           APK="dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk"
           cp "$PLUGIN_MODULE/build/outputs/apk/release/${PLUGIN_MODULE}-release.apk" "$APK"
-          PACKAGE_NAME=$(aapt dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -x "$AAPT" || { echo "Missing aapt at $AAPT"; exit 1; }
+          test -x "$APKSIGNER" || { echo "Missing apksigner at $APKSIGNER"; exit 1; }
+          PACKAGE_NAME=$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
           EXPECTED_PACKAGE=$(jq -r '.packageName' /tmp/plugin-release-manifest.json)
           test "$PACKAGE_NAME" = "$EXPECTED_PACKAGE" || { echo "APK packageName mismatch: $PACKAGE_NAME != $EXPECTED_PACKAGE"; exit 1; }
           sha256sum "$APK" > dist/SHA256SUMS-release.txt
-          command -v apksigner >/dev/null 2>&1 || { echo 'apksigner not found on runner'; exit 1; }
-          apksigner verify --verbose "$APK"
+          "$APKSIGNER" verify --verbose "$APK"
 
       - name: Publish GitHub release
         if: ${{ env.SKIP_RELEASE != 'true' }}
