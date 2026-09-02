@@ -136,7 +136,11 @@ public final class PluginManager {
         if (!manifest.id.equals(plugin.getId()) || !manifest.version.equals(plugin.getVersion())) {
             throw new SecurityException("plugin entrypoint identity mismatch");
         }
-        plugin.onLoad(new PluginContext(context, instagramClassLoader, instagramVersion, new PluginLog(manifest.id)));
+        try {
+            plugin.onLoad(new PluginContext(context, instagramClassLoader, instagramVersion, new PluginLog(manifest.id)));
+        } catch (Throwable error) {
+            throw new Exception("plugin onLoad failed", error);
+        }
         LOADED.add(manifest.id);
         ModuleLog.line("(InstaEclipse | Plugin): loaded " + manifest.id + " v" + manifest.version);
     }
