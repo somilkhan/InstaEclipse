@@ -10,7 +10,6 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -233,7 +232,6 @@ public final class ProfilePicDownloadHook {
                 && value.matches("[a-zA-Z0-9._]+") && !value.matches("\\d+");
     }
 
-    /** Weak identity map wrapper avoids retaining Instagram's rapidly-changing views. */
     private static final class MapLike<K, V> {
         private final WeakHashMap<K, V> map = new WeakHashMap<>();
         synchronized V get(K key) { return map.get(key); }
