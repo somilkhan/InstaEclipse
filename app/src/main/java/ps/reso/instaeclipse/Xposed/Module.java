@@ -64,7 +64,6 @@ import ps.reso.instaeclipse.utils.core.SettingsManager;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureManager;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
-import ps.reso.instaeclipse.utils.plugin.PluginManager;
 
 @SuppressLint("UnsafeDynamicallyLoadedCode")
 public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
@@ -126,12 +125,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     SettingsManager.init(context);
                     SettingsManager.loadAllFlags(context);
                     Logging.init(context, "instaeclipse_module.log");
-                    try {
-                        android.content.pm.PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-                        PluginManager.bootstrap(context, hostClassLoader, pi.versionName == null ? "" : pi.versionName);
-                    } catch (Throwable e) {
-                        ModuleLog.line("(InstaEclipse | Plugin): bootstrap invocation failed: " + e);
-                    }
                     try {
                         XSharedPreferences cp = new XSharedPreferences(CommonUtils.MY_PACKAGE_NAME, "instaeclipse_cache");
                         cp.reload();
