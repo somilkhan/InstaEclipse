@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "catalog_version": 1,
+  "catalog_version": 2,
   "core": {
     "latest_version": "0.6.0",
     "update_url": "https://github.com/somilkhan/InstaEclipse/releases/latest"
@@ -41,6 +41,15 @@
       "delivery": "builtin",
       "release_url": "https://github.com/somilkhan/InstaEclipse/releases/latest",
       "pref_keys": ["customThemeEnabled"]
+    },
+    {
+      "id": "pfp-downloader",
+      "name": "PFP Downloader Pack",
+      "description": "Download expanded Instagram profile pictures as an independently delivered feature pack.",
+      "version": "1.0.0",
+      "delivery": "remote",
+      "download_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin-pfp-v1.0.0/instaeclipse-pfp-1.0.0.apk",
+      "sha256": ""
     }
   ]
 }
