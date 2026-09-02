@@ -58,6 +58,7 @@ import ps.reso.instaeclipse.mods.ui.UIHookManager;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeEngine;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeHook;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
+import ps.reso.instaeclipse.utils.core.CompatibilityRuntime;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -125,26 +126,20 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     SettingsManager.init(context);
                     SettingsManager.loadAllFlags(context);
                     Logging.init(context, "instaeclipse_module.log");
-
-                    // Load independently installed, signed plugin APKs from the OS package manager.
-                    // This must happen on every fresh Instagram process before plugin hooks are used.
                     try {
                         android.content.pm.PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
                         PluginManager.bootstrap(context, hostClassLoader, pi.versionName == null ? "" : pi.versionName);
                     } catch (Throwable e) {
                         ModuleLog.line("(InstaEclipse | Plugin): bootstrap invocation failed: " + e);
                     }
-
                     try {
                         XSharedPreferences cp = new XSharedPreferences(CommonUtils.MY_PACKAGE_NAME, "instaeclipse_cache");
                         cp.reload();
                         String path = cp.getString("downloaderCustomPath", "");
-                        String uri  = cp.getString("downloaderCustomUri",  "");
+                        String uri  = cp.getString("downloaderCustomUri", "");
                         if (!path.isEmpty()) FeatureFlags.downloaderCustomPath = path;
                         if (!uri.isEmpty()) FeatureFlags.downloaderCustomUri  = uri;
-                    } catch (Throwable ignored) {
-                    }
-
+                    } catch (Throwable ignored) {}
                     FeatureManager.refreshFeatureStatus();
                     registerSyncReceiver(context);
                     try { UIHookManager.registerConfigImportReceiver(context); } catch (Throwable e) { ModuleLog.line("(InstaEclipse | ImportReceiver): ❌ " + e.getMessage()); }
@@ -152,7 +147,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     UIHookManager instagramUI = new UIHookManager();
                     instagramUI.mainActivity(hostClassLoader);
                     IGNetworkInterceptor interceptor = new IGNetworkInterceptor();
-
                     try { new DevOptionsUnlockHook().handleDevOptions(dexKitBridge); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | DevOptions): ❌ Failed to hook"); }
                     try { new GhostDMSeenHook().handleSeenBlock(dexKitBridge); new GhostDMMarkAsReadHook(moduleSourceDir).install(lpparam.classLoader); new GhostChannelMarkAsReadHook().install(lpparam.classLoader); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | GhostSeen): ❌ Failed to hook"); }
                     try { new GhostTypingIndicatorHook().handleTypingBlock(dexKitBridge); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | GhostTyping): ❌ Failed to hook"); }
@@ -185,9 +179,7 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     try { interceptor.handleInterceptor(lpparam); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | Interceptor): ❌ Failed to hook"); }
                 }
             });
-        } catch (Exception e) {
-            ModuleLog.line("(InstaEclipse): Failed to hook " + lpparam.packageName + ": " + e.getMessage());
-        }
+        } catch (Exception e) { ModuleLog.line("(InstaEclipse): Failed to hook " + lpparam.packageName + ": " + e.getMessage()); }
     }
 
     private void registerSyncReceiver(Context context) {
@@ -211,30 +203,24 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                 } else if (CommonUtils.ACTION_CLEAR_LOGS.equals(action)) {
                     Logging.clear();
                 } else if ("ps.reso.instaeclipse.ACTION_REQUEST_PREFS".equals(action)) {
-                    ModuleLog.line("(InstaEclipse) Sync: Companion app requested current preferences.");
                     android.content.SharedPreferences prefs = ctx.getSharedPreferences("instaeclipse_prefs", Context.MODE_PRIVATE);
                     Intent reply = new Intent("ps.reso.instaeclipse.ACTION_SEND_PREFS").setPackage("ps.reso.instaeclipse"); Bundle bundle = new Bundle();
                     for (Map.Entry<String, ?> entry : prefs.getAll().entrySet()) { if (entry.getValue() instanceof Boolean) bundle.putBoolean(entry.getKey(), (Boolean) entry.getValue()); else if (entry.getValue() instanceof String) bundle.putString(entry.getKey(), (String) entry.getValue()); else if (entry.getValue() instanceof Integer) bundle.putInt(entry.getKey(), (Integer) entry.getValue()); }
                     reply.putExtras(bundle); ctx.sendBroadcast(reply);
                 } else if ("ps.reso.instaeclipse.ACTION_EXPORT_CONFIG".equals(action)) {
-                    ModuleLog.line("(InstaEclipse) Sync: Companion app requested Dev Config export.");
                     try {
                         java.io.File source = new java.io.File(ctx.getFilesDir(), "mobileconfig/mc_overrides.json");
-                        if (!source.exists()) { ModuleLog.line("(InstaEclipse) Export: mc_overrides.json not found."); Intent reply = new Intent("ps.reso.instaeclipse.ACTION_SEND_CONFIG").setPackage("ps.reso.instaeclipse"); reply.putExtra("error", "mc_overrides.json not found."); ctx.sendBroadcast(reply); return; }
+                        if (!source.exists()) { Intent reply = new Intent("ps.reso.instaeclipse.ACTION_SEND_CONFIG").setPackage("ps.reso.instaeclipse"); reply.putExtra("error", "mc_overrides.json not found."); ctx.sendBroadcast(reply); return; }
                         StringBuilder sb = new StringBuilder();
                         try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(source))) { String line; while ((line = reader.readLine()) != null) sb.append(line).append("\n"); }
                         Intent reply = new Intent("ps.reso.instaeclipse.ACTION_SEND_CONFIG").setPackage("ps.reso.instaeclipse"); reply.putExtra("config", sb.toString()); ctx.sendBroadcast(reply);
                     } catch (Throwable e) { Intent reply = new Intent("ps.reso.instaeclipse.ACTION_SEND_CONFIG").setPackage("ps.reso.instaeclipse"); reply.putExtra("error", e.getMessage()); ctx.sendBroadcast(reply); }
-                } else if ("ps.reso.instaeclipse.ACTION_IMPORT_CONFIG".equals(action)) {
-                    ModuleLog.line("(InstaEclipse) Sync: Companion app requested Dev Config import.");
                 }
             }
         };
         IntentFilter filter = new IntentFilter();
         filter.addAction("ps.reso.instaeclipse.ACTION_UPDATE_PREF"); filter.addAction("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING"); filter.addAction("ps.reso.instaeclipse.ACTION_UPDATE_PREF_INT"); filter.addAction(CommonUtils.ACTION_REQUEST_LOGS); filter.addAction(CommonUtils.ACTION_CLEAR_LOGS); filter.addAction("ps.reso.instaeclipse.ACTION_REQUEST_PREFS"); filter.addAction("ps.reso.instaeclipse.ACTION_EXPORT_CONFIG"); filter.addAction("ps.reso.instaeclipse.ACTION_IMPORT_CONFIG");
-        try {
-            if (Build.VERSION.SDK_INT >= 33) ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED);
-            else context.registerReceiver(receiver, filter);
-        } catch (Throwable e) { ModuleLog.line("(InstaEclipse): Failed to register sync receiver: " + e.getMessage()); }
+        try { ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED); }
+        catch (Throwable e) { ModuleLog.line("(InstaEclipse): Failed to register sync receiver: " + e.getMessage()); }
     }
 }
