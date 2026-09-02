@@ -232,7 +232,7 @@ public final class PluginHubActivity extends AppCompatActivity {
                 String sha = findSha(sidecar, fileName);
                 if (sha.isEmpty()) throw new SecurityException(
                         "Published SHA-256 not found for " + fileName);
-                PluginDownloadManager.downloadAndQueue(this, p.id, p.version,
+                PluginDownloadManager.downloadAndQueue(this, p.id, p.version, p.packageName,
                         p.downloadUrl, sha, p.maxInstagramVersion);
             } catch (Throwable e) {
                 runOnUiThread(() -> Toast.makeText(this,
