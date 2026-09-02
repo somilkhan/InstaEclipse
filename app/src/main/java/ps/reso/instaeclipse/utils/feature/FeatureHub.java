@@ -20,6 +20,7 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.gson.Gson;
 
 import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -35,6 +36,7 @@ import ps.reso.instaeclipse.R;
 public final class FeatureHub {
     private static final String CATALOG_URL = "https://raw.githubusercontent.com/somilkhan/InstaEclipse/main/plugins.json";
     private static final String PREFS = "instaeclipse_cache";
+    private static final String RETRY_TAG = "catalog_retry";
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "InstaEclipse-FeatureCatalog");
         t.setDaemon(true);
@@ -71,6 +73,7 @@ public final class FeatureHub {
     }
 
     private static void loadCatalog(Context context, LinearLayout root, TextView status, BottomSheetDialog dialog) {
+        status.setText("Checking catalog…");
         EXECUTOR.execute(() -> {
             try {
                 HttpURLConnection connection = (HttpURLConnection) new URL(CATALOG_URL).openConnection();
@@ -95,17 +98,45 @@ public final class FeatureHub {
                 MAIN.post(() -> renderCatalog(context, root, status, catalog));
             } catch (Throwable error) {
                 MAIN.post(() -> {
-                    status.setText("Couldn't reach the update catalog");
-                    MaterialButton retry = new MaterialButton(context);
-                    retry.setText("Retry");
-                    retry.setOnClickListener(v -> loadCatalog(context, root, status, dialog));
-                    root.addView(retry, marginParams(0, 8, 0, 0));
+                    // Never stack another Retry button when the user retries repeatedly.
+                    // The bundled catalog keeps the feature list usable even when GitHub is offline.
+                    try {
+                        Catalog bundled = loadBundledCatalog(context);
+                        status.setText("Offline catalog • live updates unavailable");
+                        renderCatalog(context, root, status, bundled);
+                    } catch (Throwable bundledError) {
+                        status.setText("Couldn't reach the update catalog");
+                    }
+                    ensureRetryButton(context, root, status, dialog);
                 });
             }
         });
     }
 
+    private static Catalog loadBundledCatalog(Context context) throws Exception {
+        try (InputStream input = context.getAssets().open("plugins.json");
+             BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
+            StringBuilder body = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) body.append(line);
+            Catalog catalog = new Gson().fromJson(body.toString(), Catalog.class);
+            if (catalog == null || catalog.plugins == null) throw new IllegalStateException("Invalid bundled catalog");
+            return catalog;
+        }
+    }
+
+    private static void ensureRetryButton(Context context, LinearLayout root, TextView status, BottomSheetDialog dialog) {
+        if (root.findViewWithTag(RETRY_TAG) != null) return;
+        MaterialButton retry = new MaterialButton(context);
+        retry.setTag(RETRY_TAG);
+        retry.setText("Retry");
+        retry.setOnClickListener(v -> loadCatalog(context, root, status, dialog));
+        root.addView(retry, marginParams(0, 8, 0, 0));
+    }
+
     private static void renderCatalog(Context context, LinearLayout root, TextView status, Catalog catalog) {
+        View retry = root.findViewWithTag(RETRY_TAG);
+        if (retry != null) root.removeView(retry);
         status.setText("Core " + (catalog.core != null ? catalog.core.latest_version : "current") + " • " + catalog.plugins.length + " feature packs");
         for (Plugin plugin : catalog.plugins) {
             root.addView(pluginCard(context, plugin), marginParams(0, 0, 0, 10));
