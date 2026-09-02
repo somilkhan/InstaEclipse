@@ -168,8 +168,7 @@ public final class PluginManager {
         };
         IntentFilter filter = new IntentFilter(ACTION_RESTART_INSTAGRAM);
         try {
-            if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, RESTART_PERMISSION, null, Context.RECEIVER_EXPORTED);
-            else context.registerReceiver(receiver, filter, RESTART_PERMISSION, null);
+            androidx.core.content.ContextCompat.registerReceiver(context, receiver, filter, androidx.core.content.ContextCompat.RECEIVER_EXPORTED);
             restartReceiverRegistered = true;
         } catch (Throwable error) { ModuleLog.line("(InstaEclipse | Plugin): restart receiver registration failed: " + error); }
     }
