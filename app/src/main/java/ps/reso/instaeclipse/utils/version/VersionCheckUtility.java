@@ -16,10 +16,11 @@ import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import ps.reso.instaeclipse.BuildConfig;
 import ps.reso.instaeclipse.R;
 
 public final class VersionCheckUtility {
-    private static final String CURRENT_VERSION = "0.6.0";
+    private static final String CURRENT_VERSION = BuildConfig.VERSION_NAME;
     private static final String VERSION_CHECK_URL = "https://raw.githubusercontent.com/somilkhan/InstaEclipse/main/version.json";
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "InstaEclipse-VersionCheck");
