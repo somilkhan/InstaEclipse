@@ -45,7 +45,7 @@ public final class PluginManager {
 
     private PluginManager() {}
 
-    public static void bootstrap(Context context, ClassLoader instagramClassLoader, String instagramVersion) {
+    public static synchronized void bootstrap(Context context, ClassLoader instagramClassLoader, String instagramVersion) {
         if (bootstrapped) return;
         bootstrapped = true;
         try {
@@ -76,7 +76,7 @@ public final class PluginManager {
         if (!stagingDir.exists() && !stagingDir.mkdirs()) return false;
         File staging = new File(stagingDir, "plugin-" + System.nanoTime() + ".apk");
         try {
-            copyUri(context, uri, staging);
+            copyUriReadOnly(context, uri, staging);
             PluginManifest manifest = readManifest(staging);
             if (!safeEquals(expectedId, manifest.id) || !safeEquals(expectedVersion, manifest.version)) {
                 throw new SecurityException("catalog/plugin identity mismatch");
@@ -125,7 +125,7 @@ public final class PluginManager {
 
         apk.setReadOnly();
         File optimized = new File(context.getCodeCacheDir(), "instaeclipse-plugins");
-        if (!optimized.exists()) optimized.mkdirs();
+        if (!optimized.exists() && !optimized.mkdirs()) throw new IllegalStateException("plugin cache unavailable");
         DexClassLoader loader = new DexClassLoader(
                 apk.getAbsolutePath(), optimized.getAbsolutePath(), null,
                 InstaEclipsePlugin.class.getClassLoader());
@@ -148,6 +148,7 @@ public final class PluginManager {
     private static void validateManifest(PluginManifest manifest, String instagramVersion) {
         if (manifest.schema != 1) throw new IllegalStateException("unsupported plugin schema");
         if (manifest.id == null || !manifest.id.matches("[a-z0-9][a-z0-9._-]{1,63}")) throw new SecurityException("invalid plugin id");
+        if (manifest.version == null || !manifest.version.matches("\\d+\\.\\d+\\.\\d+")) throw new SecurityException("invalid plugin version");
         if (manifest.entrypoint == null || manifest.entrypoint.length() > 200) throw new SecurityException("invalid entrypoint");
         if (manifest.min_core_api > CORE_API || manifest.max_core_api < CORE_API) throw new IllegalStateException("core API incompatible");
         long ig = parseLong(instagramVersion);
@@ -167,10 +168,13 @@ public final class PluginManager {
         }
     }
 
-    private static void copyUri(Context context, Uri uri, File target) throws Exception {
+    private static void copyUriReadOnly(Context context, Uri uri, File target) throws Exception {
         try (InputStream input = context.getContentResolver().openInputStream(uri);
-             OutputStream output = new FileOutputStream(target)) {
+             FileOutputStream output = new FileOutputStream(target)) {
             if (input == null) throw new IllegalStateException("plugin URI cannot be opened");
+            // Android 14+ requires dynamically loaded DEX/JAR/APK files to be read-only.
+            // Mark the file immutable before writing its contents to close the overwrite race.
+            if (!target.setReadOnly()) throw new SecurityException("plugin staging cannot be made read-only");
             byte[] buffer = new byte[32 * 1024];
             int read;
             while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
