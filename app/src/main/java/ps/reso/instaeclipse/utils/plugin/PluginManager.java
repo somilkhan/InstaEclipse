@@ -64,6 +64,7 @@ public final class PluginManager {
         catch (Throwable error) { ModuleLog.line("(InstaEclipse | Plugin): installer launch failed: " + error); return false; }
     }
     public static boolean isInstalled(Context context, String id) { return findPlugin(context, id) != null; }
+    public static String getInstalledVersion(Context context, String id) { PackageInfo info = findPlugin(context, id); return info == null ? null : info.versionName; }
     public static boolean isEnabled(Context context, String id) { return isInstalled(context, id) && context.getSharedPreferences("instaeclipse_plugins", Context.MODE_PRIVATE).getBoolean("enabled_" + id, true); }
     public static void setEnabled(Context context, String id, boolean enabled) { context.getSharedPreferences("instaeclipse_plugins", Context.MODE_PRIVATE).edit().putBoolean("enabled_" + id, enabled).apply(); }
     public static void requestUninstall(Context context, String id) { PackageInfo info = findPlugin(context, id); if (info == null) return; context.startActivity(new Intent(Intent.ACTION_UNINSTALL_PACKAGE, Uri.parse("package:" + info.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
