@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
@@ -61,7 +60,6 @@ public final class FeatureHub {
 
         dialog.setContentView(root);
         dialog.show();
-
         loadCatalog(context, root, status, dialog);
     }
 
@@ -94,8 +92,7 @@ public final class FeatureHub {
 
                 Catalog catalog = new Gson().fromJson(body.toString(), Catalog.class);
                 if (catalog == null || catalog.plugins == null) throw new IllegalStateException("Invalid catalog");
-
-                MAIN.post(() -> renderCatalog(context, root, status, dialog, catalog));
+                MAIN.post(() -> renderCatalog(context, root, status, catalog));
             } catch (Throwable error) {
                 MAIN.post(() -> {
                     status.setText("Couldn't reach the update catalog");
@@ -108,14 +105,14 @@ public final class FeatureHub {
         });
     }
 
-    private static void renderCatalog(Context context, LinearLayout root, TextView status, BottomSheetDialog dialog, Catalog catalog) {
+    private static void renderCatalog(Context context, LinearLayout root, TextView status, Catalog catalog) {
         status.setText("Core " + (catalog.core != null ? catalog.core.latest_version : "current") + " • " + catalog.plugins.length + " feature packs");
         for (Plugin plugin : catalog.plugins) {
-            root.addView(pluginCard(context, plugin, dialog), marginParams(0, 0, 0, 10));
+            root.addView(pluginCard(context, plugin), marginParams(0, 0, 0, 10));
         }
     }
 
-    private static View pluginCard(Context context, Plugin plugin, BottomSheetDialog dialog) {
+    private static View pluginCard(Context context, Plugin plugin) {
         MaterialCardView card = new MaterialCardView(context);
         card.setCardBackgroundColor(ContextCompat.getColor(context, R.color.dark_gray));
         card.setRadius(dp(context, 20));
@@ -141,13 +138,9 @@ public final class FeatureHub {
         action.setMinWidth(0);
         action.setText(isInstalled(context, plugin) ? "Installed" : "Install");
         action.setOnClickListener(v -> {
-            if (isInstalled(context, plugin)) {
-                setPlugin(context, plugin, false);
-                action.setText("Install");
-            } else {
-                setPlugin(context, plugin, true);
-                action.setText("Installed");
-            }
+            boolean enable = !isInstalled(context, plugin);
+            setPlugin(context, plugin, enable);
+            action.setText(enable ? "Installed" : "Install");
         });
 
         row.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -171,7 +164,6 @@ public final class FeatureHub {
             for (String key : plugin.pref_keys) {
                 editor.putBoolean(key, enabled);
                 Intent intent = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF");
-                intent.setPackage(context.getPackageName());
                 intent.putExtra("key", key);
                 intent.putExtra("value", enabled);
                 context.sendBroadcast(intent);
