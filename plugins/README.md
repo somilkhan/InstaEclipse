@@ -5,7 +5,7 @@
 ## Publishing a plugin
 
 1. Add the plugin Android module to `settings.gradle`.
-2. Add `plugins/<plugin-id>/plugin.json` with the required schema fields, including the Gradle `module` name.
+2. Add `plugins/<plugin-id>/plugin.json` with the required schema fields, including the Gradle `module` name and Android `packageName`.
 3. Keep the plugin entrypoint and compatibility ranges in that manifest.
 4. Ensure the plugin module builds an APK and is configured for the InstaEclipse release signing identity.
 5. Push a tag named `plugin/<plugin-id>/v<major>.<minor>.<patch>`.
@@ -18,6 +18,8 @@ The Plugin Packs workflow then:
 - signs and verifies the release APK;
 - publishes the APK and SHA-256 sidecar as a GitHub Release;
 - updates `plugins/catalog.json` automatically.
+
+Pushes to `stability/latest-instagram` that touch plugin modules or registry metadata also run a debug build of every plugin pack, so broken plugin changes are caught before release.
 
 Feature Hub reads the live catalog, so a newly published plugin or a newer plugin version becomes visible without a Core APK release.
 
