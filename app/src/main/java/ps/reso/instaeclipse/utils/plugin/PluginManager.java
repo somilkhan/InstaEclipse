@@ -1,8 +1,8 @@
 package ps.reso.instaeclipse.utils.plugin;
 
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
@@ -25,17 +25,15 @@ import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.plugin.api.InstaEclipsePlugin;
 import ps.reso.instaeclipse.plugin.api.PluginContext;
 import ps.reso.instaeclipse.plugin.api.PluginLogger;
+import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Loads first-party executable feature packs inside the Instagram process.
- * Downloaded code is accepted only after manifest, compatibility, SHA-256 (when supplied),
- * and signer checks. Installed plugin APKs are made read-only before DCL.
- */
+/** Secure first-party executable plugin runtime. */
 public final class PluginManager {
     public static final int CORE_API = 1;
     public static final String ACTION_INSTALL_PLUGIN = "ps.reso.instaeclipse.ACTION_INSTALL_PLUGIN";
     public static final String ACTION_REQUEST_PENDING = "ps.reso.instaeclipse.ACTION_REQUEST_PENDING_PLUGIN";
+    public static final String ACTION_PLUGIN_INSTALLED = "ps.reso.instaeclipse.ACTION_PLUGIN_INSTALLED";
     public static final String EXTRA_URI = "plugin_uri";
     public static final String EXTRA_ID = "plugin_id";
     public static final String EXTRA_VERSION = "plugin_version";
@@ -88,15 +86,14 @@ public final class PluginManager {
                 String actual = sha256(staging);
                 if (!expectedSha256.equalsIgnoreCase(actual)) throw new SecurityException("SHA-256 mismatch");
             }
-            if (!signerMatchesModule(context, staging)) {
-                throw new SecurityException("plugin signer does not match InstaEclipse core");
-            }
+            if (!signerMatchesModule(context, staging)) throw new SecurityException("plugin signer does not match InstaEclipse core");
 
             File target = new File(root, manifest.id + "-" + manifest.version + ".apk");
             if (target.exists() && !target.delete()) throw new IllegalStateException("old plugin cannot be replaced");
             if (!staging.renameTo(target)) throw new IllegalStateException("plugin commit failed");
             target.setReadOnly();
             loadInstalled(context, instagramClassLoader, instagramVersion, target);
+            notifyCompanionInstalled(context, manifest.id, manifest.version);
             ModuleLog.line("(InstaEclipse | Plugin): installed " + manifest.id + " v" + manifest.version);
             return true;
         } catch (Throwable error) {
@@ -159,8 +156,7 @@ public final class PluginManager {
             if (entry == null) entry = zip.getEntry("plugin.json");
             if (entry == null) throw new IllegalStateException("plugin manifest missing");
             try (InputStream input = zip.getInputStream(entry)) {
-                byte[] data = readAll(input);
-                PluginManifest manifest = GSON.fromJson(new String(data, java.nio.charset.StandardCharsets.UTF_8), PluginManifest.class);
+                PluginManifest manifest = GSON.fromJson(new String(readAll(input), java.nio.charset.StandardCharsets.UTF_8), PluginManifest.class);
                 if (manifest == null) throw new IllegalStateException("plugin manifest invalid");
                 return manifest;
             }
@@ -233,8 +229,19 @@ public final class PluginManager {
 
     private static void requestPendingTransfer(Context context) {
         try {
-            android.content.Intent intent = new android.content.Intent(ACTION_REQUEST_PENDING);
-            intent.setPackage(ps.reso.instaeclipse.utils.core.CommonUtils.MY_PACKAGE_NAME);
+            Intent intent = new Intent(ACTION_REQUEST_PENDING);
+            intent.setPackage(CommonUtils.MY_PACKAGE_NAME);
+            context.sendBroadcast(intent);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void notifyCompanionInstalled(Context context, String id, String version) {
+        try {
+            Intent intent = new Intent(ACTION_PLUGIN_INSTALLED);
+            intent.setPackage(CommonUtils.MY_PACKAGE_NAME);
+            intent.putExtra(EXTRA_ID, id);
+            intent.putExtra(EXTRA_VERSION, version);
             context.sendBroadcast(intent);
         } catch (Throwable ignored) {
         }
