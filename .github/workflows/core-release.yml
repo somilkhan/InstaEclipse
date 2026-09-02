@@ -1,0 +1,152 @@
+name: InstaEclipse Core Release
+
+on:
+  push:
+    branches:
+      - stability/latest-instagram
+    paths:
+      - "app/**"
+      - "plugin-api/**"
+      - "gradle/**"
+      - "build.gradle"
+      - "settings.gradle"
+      - "gradle.properties"
+      - "gradlew"
+      - "gradlew.bat"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: core-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-core:
+    name: Build, verify and publish Core APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Read Core version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n "s/^[[:space:]]*versionName[[:space:]]*['\"]\([^'\"]*\)['\"].*/\1/p" app/build.gradle | head -n1)
+          CODE=$(sed -n "s/^[[:space:]]*versionCode[[:space:]]*\([0-9][0-9]*\).*/\1/p" app/build.gradle | head -n1)
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid Core version: $VERSION"; exit 1; }
+          [[ "$CODE" =~ ^[0-9]+$ ]] || { echo "Invalid Core versionCode: $CODE"; exit 1; }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this Core release already exists
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "core/v${VERSION}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Core v${VERSION} already exists; no duplicate release will be created."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK 17
+        if: steps.existing.outputs.exists != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        if: steps.existing.outputs.exists != 'true'
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools build-tools;35.0.0 platforms;android-35
+
+      - name: Validate Gradle wrapper
+        if: steps.existing.outputs.exists != 'true'
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Make Gradle executable
+        if: steps.existing.outputs.exists != 'true'
+        run: chmod +x ./gradlew
+
+      - name: Run Core unit tests
+        if: steps.existing.outputs.exists != 'true'
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Run Core lint
+        if: steps.existing.outputs.exists != 'true'
+        run: ./gradlew :app:lintDebug --no-daemon --stacktrace
+
+      - name: Prepare release signing key
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.INSTAECLIPSE_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" || { echo "INSTAECLIPSE_KEYSTORE_BASE64 is required"; exit 1; }
+          echo "$KEYSTORE_B64" | base64 --decode > /tmp/instaeclipse-release.jks
+          test -s /tmp/instaeclipse-release.jks
+
+      - name: Build signed Core release
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.INSTAECLIPSE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.INSTAECLIPSE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.INSTAECLIPSE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo "Core signing secrets are required"; exit 1; }
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace \
+            -PcoreReleaseStoreFile=/tmp/instaeclipse-release.jks \
+            -PcoreReleaseStorePassword="$KEYSTORE_PASSWORD" \
+            -PcoreReleaseKeyAlias="$KEY_ALIAS" \
+            -PcoreReleaseKeyPassword="$KEY_PASSWORD"
+
+      - name: Verify signed Core APK
+        if: steps.existing.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          test -s "$APK"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          PACKAGE=$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+          VERSION=$("$AAPT" dump badging "$APK" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+          test "$PACKAGE" = "ps.reso.instaeclipse"
+          test "$VERSION" = "${{ steps.version.outputs.version }}"
+          "$APKSIGNER" verify --verbose "$APK"
+          mkdir -p dist
+          cp "$APK" "dist/instaeclipse-core-${{ steps.version.outputs.version }}.apk"
+          sha256sum "dist/instaeclipse-core-${{ steps.version.outputs.version }}.apk" > dist/SHA256SUMS-core.txt
+
+      - name: Publish Core GitHub release
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release create "core/v${VERSION}" \
+            "dist/instaeclipse-core-${VERSION}.apk" dist/SHA256SUMS-core.txt \
+            --target "$GITHUB_SHA" \
+            --title "InstaEclipse Core ${VERSION}" \
+            --notes "Signed InstaEclipse Core APK. Install this APK first; downloadable feature packs are managed from the in-app Plugins hub."
