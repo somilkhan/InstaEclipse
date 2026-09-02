@@ -2,6 +2,26 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <queries>
+        <package android:name="com.instagram.android" />
+        <package android:name="com.instagold.android" />
+        <package android:name="com.instaflux.app" />
+        <package android:name="com.myinsta.android" />
+        <package android:name="cc.honista.app" />
+        <package android:name="com.instaprime.android" />
+        <package android:name="com.instafel.android" />
+        <package android:name="com.instadm.android" />
+        <package android:name="com.dfistagram.android" />
+        <package android:name="com.Instander.android" />
+        <package android:name="com.aero.instagram" />
+        <package android:name="com.instapro.android" />
+        <package android:name="com.instaflow.android" />
+        <package android:name="com.instagram1.android" />
+        <package android:name="com.instagram2.android" />
+        <package android:name="com.instagramclone.android" />
+        <package android:name="com.instaclone.android" />
+    </queries>
+
     <permission
         android:name="ps.reso.instaeclipse.permission.RESTART_INSTAGRAM"
         android:protectionLevel="signature" />
