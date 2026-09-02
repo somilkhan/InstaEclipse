@@ -40,6 +40,17 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Materialize plugin version metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('plugin-pfp/src/main/assets/plugin.json')
+          data = json.loads(path.read_text())
+          data['version'] = '${{ env.PLUGIN_VERSION }}'
+          path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+
       - name: Build unsigned plugin
         run: |
           chmod +x ./gradlew
