@@ -145,7 +145,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
                 FeatureManager.refreshFeatureStatus();
                 registerSyncReceiver(appContext);
                 PluginRuntime.start(appContext, classLoader, detectedVersion);
-                installAllFeatures(bridge, classLoader, lpparam);
+                installAllFeatures(appContext, bridge, classLoader, lpparam);
                 ModuleLog.line("(InstaEclipse | Startup): asynchronous bootstrap complete for IG " + detectedVersion);
             } catch (Throwable t) {
                 ModuleLog.line("(InstaEclipse | Startup): bootstrap failed safely: " + t);
@@ -174,7 +174,7 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         }
     }
 
-    private void installAllFeatures(DexKitBridge bridge, ClassLoader classLoader, XC_LoadPackage.LoadPackageParam lpparam) {
+    private void installAllFeatures(Context appContext, DexKitBridge bridge, ClassLoader classLoader, XC_LoadPackage.LoadPackageParam lpparam) {
         run("DevOptions", () -> new DevOptionsUnlockHook().handleDevOptions(bridge));
         run("GhostSeen", () -> { new GhostDMSeenHook().handleSeenBlock(bridge); new GhostDMMarkAsReadHook(moduleSourceDir).install(classLoader); new GhostChannelMarkAsReadHook().install(classLoader); });
         run("GhostTyping", () -> new GhostTypingIndicatorHook().handleTypingBlock(bridge));
@@ -212,15 +212,11 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         });
         run("ReelDownload", () -> new ReelDownloadHook().install(bridge, classLoader));
         run("ProfileDownload", () -> {
-            if (!PluginManager.isInstalled(appContextFor(classLoader), "pfp-downloader")) ProfilePicDownloadHook.install();
+            if (!PluginManager.isInstalled(appContext, "pfp-downloader")) ProfilePicDownloadHook.install();
             else ModuleLog.line("(InstaEclipse | ProfileDownload): core fallback skipped; PFP plugin is active");
         });
         run("Interceptor", () -> new IGNetworkInterceptor().handleInterceptor(lpparam));
         run("MainActivityUI", () -> new UIHookManager().mainActivity(classLoader));
-    }
-
-    private Context appContextFor(ClassLoader classLoader) {
-        return ModuleContextHolder.get();
     }
 
     private interface FeatureInstall { void install() throws Throwable; }
@@ -237,15 +233,6 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
         } catch (Throwable t) {
             CompatibilityRuntime.installFailed(name, t);
             ModuleLog.line("(InstaEclipse | " + name + "): isolated install failure: " + t);
-        }
-    }
-
-    /** Keeps the target Application context available to late feature gates. */
-    private static final class ModuleContextHolder {
-        private static volatile Context context;
-        static Context get() {
-            if (context == null) throw new IllegalStateException("Instagram context unavailable");
-            return context;
         }
     }
 }
