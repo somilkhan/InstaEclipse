@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "catalog_version": 1,
+  "core": {
+    "latest_version": "0.6.0",
+    "update_url": "https://github.com/somilkhan/InstaEclipse/releases/latest"
+  },
+  "plugins": [
+    {
+      "id": "ghost-pack",
+      "name": "Ghost Pack",
+      "description": "Privacy controls for seen, typing, screenshots, view-once and replay behavior.",
+      "version": "1.0.0",
+      "delivery": "builtin",
+      "release_url": "https://github.com/somilkhan/InstaEclipse/releases/latest",
+      "pref_keys": ["isGhostSeen", "isGhostTyping", "isGhostScreenshot", "isGhostViewOnce", "enableUnlimitedReplays", "isGhostStory", "isGhostLive", "allowScreenshots", "keepEphemeralMessages", "permanentViewMode"]
+    },
+    {
+      "id": "downloader-pack",
+      "name": "Downloader Pack",
+      "description": "Post, Story, Reel and profile media download controls.",
+      "version": "1.0.0",
+      "delivery": "builtin",
+      "release_url": "https://github.com/somilkhan/InstaEclipse/releases/latest",
+      "pref_keys": ["enablePostDownload", "enableStoryDownload", "enableReelDownload", "enableProfileDownload"]
+    },
+    {
+      "id": "clean-feed-pack",
+      "name": "Clean Feed Pack",
+      "description": "Remove suggested feed and Threads suggestion units.",
+      "version": "1.0.0",
+      "delivery": "builtin",
+      "release_url": "https://github.com/somilkhan/InstaEclipse/releases/latest",
+      "pref_keys": ["hideSuggestionsInFeed", "hideThreadsSuggestions"]
+    },
+    {
+      "id": "theme-pack",
+      "name": "Theme Pack",
+      "description": "Enable InstaEclipse custom Instagram theming and palette controls.",
+      "version": "1.0.0",
+      "delivery": "builtin",
+      "release_url": "https://github.com/somilkhan/InstaEclipse/releases/latest",
+      "pref_keys": ["customThemeEnabled"]
+    }
+  ]
+}
