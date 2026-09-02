@@ -26,6 +26,7 @@ public final class PluginInstallActivity extends Activity {
     private File stagedApk;
     private String expectedId;
     private String expectedVersion;
+    private String expectedPackageName;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -33,6 +34,7 @@ public final class PluginInstallActivity extends Activity {
         Uri uri = getIntent().getData();
         expectedId = getIntent().getStringExtra(PluginManager.EXTRA_ID);
         expectedVersion = getIntent().getStringExtra(PluginManager.EXTRA_VERSION);
+        expectedPackageName = getIntent().getStringExtra(PluginManager.EXTRA_PACKAGE);
         String sha = getIntent().getStringExtra(PluginManager.EXTRA_SHA256);
         if (uri == null) { fail("Plugin package URI missing"); return; }
         new Thread(() -> prepare(uri, sha == null ? "" : sha), "InstaEclipse-PluginVerify").start();
@@ -69,6 +71,10 @@ public final class PluginInstallActivity extends Activity {
 
             if (candidate.packageName == null || !candidate.packageName.startsWith("ps.reso.instaeclipse.plugins."))
                 throw new SecurityException("invalid plugin package name");
+            if (expectedPackageName != null && !expectedPackageName.isEmpty()
+                    && !expectedPackageName.equals(candidate.packageName)) {
+                throw new SecurityException("plugin package name mismatch");
+            }
             if (!manifest.version.equals(candidate.versionName))
                 throw new SecurityException("plugin APK version mismatch");
 
@@ -179,7 +185,5 @@ public final class PluginInstallActivity extends Activity {
         return output.toByteArray();
     }
 
-    private static final class Manifest {
-        int schema; String id; String version;
-    }
+    private static final class Manifest { int schema; String id; String version; }
 }
