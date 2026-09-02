@@ -2,7 +2,8 @@ package ps.reso.instaeclipse.utils.plugin;
 
 import android.content.Context;
 import android.content.IntentFilter;
-import android.os.Build;
+
+import androidx.core.content.ContextCompat;
 
 import ps.reso.instaeclipse.Xposed.PluginInstallReceiver;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
@@ -18,11 +19,9 @@ public final class PluginRuntime {
             if (!registered) {
                 PluginInstallReceiver receiver = new PluginInstallReceiver(instagramClassLoader, instagramVersion);
                 IntentFilter filter = new IntentFilter(PluginManager.ACTION_INSTALL_PLUGIN);
-                if (Build.VERSION.SDK_INT >= 33) {
-                    context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
-                } else {
-                    context.registerReceiver(receiver, filter);
-                }
+                // The companion app sends this broadcast into Instagram, so this receiver
+                // must be exported. The sender targets Instagram explicitly.
+                ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED);
                 registered = true;
             }
             PluginManager.bootstrap(context, instagramClassLoader, instagramVersion);
