@@ -2,42 +2,44 @@ package ps.reso.instaeclipse.utils.plugin;
 
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
+import android.net.Uri;
 
 import com.google.gson.Gson;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import dalvik.system.DexClassLoader;
+import dalvik.system.PathClassLoader;
 import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.plugin.api.InstaEclipsePlugin;
 import ps.reso.instaeclipse.plugin.api.PluginContext;
 import ps.reso.instaeclipse.plugin.api.PluginLogger;
-import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/** Secure first-party executable plugin runtime. */
+/** Runtime for signed, independently installed InstaEclipse plugin APKs. */
 public final class PluginManager {
     public static final int CORE_API = 1;
     public static final String ACTION_INSTALL_PLUGIN = "ps.reso.instaeclipse.ACTION_INSTALL_PLUGIN";
-    public static final String ACTION_REQUEST_PENDING = "ps.reso.instaeclipse.ACTION_REQUEST_PENDING_PLUGIN";
     public static final String ACTION_PLUGIN_INSTALLED = "ps.reso.instaeclipse.ACTION_PLUGIN_INSTALLED";
     public static final String EXTRA_URI = "plugin_uri";
     public static final String EXTRA_ID = "plugin_id";
     public static final String EXTRA_VERSION = "plugin_version";
     public static final String EXTRA_SHA256 = "plugin_sha256";
+    public static final String META_PLUGIN = "ps.reso.instaeclipse.plugin";
+    public static final String META_PLUGIN_ID = "ps.reso.instaeclipse.plugin.id";
+    public static final String META_PLUGIN_VERSION = "ps.reso.instaeclipse.plugin.version";
+    public static final String META_PLUGIN_ENTRYPOINT = "ps.reso.instaeclipse.plugin.entrypoint";
 
     private static final Gson GSON = new Gson();
     private static final Set<String> LOADED = new HashSet<>();
@@ -49,100 +51,141 @@ public final class PluginManager {
         if (bootstrapped) return;
         bootstrapped = true;
         try {
-            File root = pluginDirectory(context);
-            if (!root.exists() && !root.mkdirs()) throw new IllegalStateException("plugin directory unavailable");
-            File[] files = root.listFiles((dir, name) -> name.endsWith(".apk"));
-            if (files != null) {
-                for (File file : files) {
-                    try {
-                        loadInstalled(context, instagramClassLoader, instagramVersion, file);
-                    } catch (Throwable error) {
-                        ModuleLog.line("(InstaEclipse | Plugin): rejected " + file.getName() + ": " + error.getMessage());
-                    }
+            PackageManager pm = context.getPackageManager();
+            int flags = PackageManager.GET_META_DATA | PackageManager.GET_SIGNING_CERTIFICATES;
+            List<PackageInfo> packages = pm.getInstalledPackages(flags);
+            for (PackageInfo info : packages) {
+                ApplicationInfo app = info.applicationInfo;
+                if (app == null || app.metaData == null || !app.metaData.getBoolean(META_PLUGIN, false)) continue;
+                try {
+                    loadInstalled(context, instagramClassLoader, instagramVersion, info);
+                } catch (Throwable error) {
+                    ModuleLog.line("(InstaEclipse | Plugin): rejected " + info.packageName + ": " + error.getMessage());
                 }
             }
-            requestPendingTransfer(context);
         } catch (Throwable error) {
             ModuleLog.line("(InstaEclipse | Plugin): bootstrap failed: " + error);
         }
     }
 
+    /** Compatibility entry used by the transfer receiver; installation is always user-authorized. */
     public static boolean installFromUri(Context context, ClassLoader instagramClassLoader,
                                          String instagramVersion, Uri uri,
                                          String expectedId, String expectedVersion,
                                          String expectedSha256) {
-        File root = pluginDirectory(context);
-        File stagingDir = new File(root, ".staging");
-        if (!stagingDir.exists() && !stagingDir.mkdirs()) return false;
-        File staging = new File(stagingDir, "plugin-" + System.nanoTime() + ".apk");
         try {
-            copyUriReadOnly(context, uri, staging);
-            PluginManifest manifest = readManifest(staging);
-            if (!safeEquals(expectedId, manifest.id) || !safeEquals(expectedVersion, manifest.version)) {
-                throw new SecurityException("catalog/plugin identity mismatch");
-            }
-            validateManifest(manifest, instagramVersion);
-            if (expectedSha256 != null && !expectedSha256.isEmpty()) {
-                String actual = sha256(staging);
-                if (!expectedSha256.equalsIgnoreCase(actual)) throw new SecurityException("SHA-256 mismatch");
-            }
-            if (!signerMatchesModule(context, staging)) throw new SecurityException("plugin signer does not match InstaEclipse core");
-
-            File target = new File(root, manifest.id + "-" + manifest.version + ".apk");
-            if (target.exists() && !target.delete()) throw new IllegalStateException("old plugin cannot be replaced");
-            if (!staging.renameTo(target)) throw new IllegalStateException("plugin commit failed");
-            target.setReadOnly();
-            loadInstalled(context, instagramClassLoader, instagramVersion, target);
-            notifyCompanionInstalled(context, manifest.id, manifest.version);
-            ModuleLog.line("(InstaEclipse | Plugin): installed " + manifest.id + " v" + manifest.version);
+            Intent intent = new Intent(context, PluginInstallActivity.class)
+                    .setData(uri)
+                    .putExtra(EXTRA_ID, expectedId)
+                    .putExtra(EXTRA_VERSION, expectedVersion)
+                    .putExtra(EXTRA_SHA256, expectedSha256 == null ? "" : expectedSha256)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            context.startActivity(intent);
             return true;
         } catch (Throwable error) {
-            ModuleLog.line("(InstaEclipse | Plugin): install failed: " + error);
-            if (staging.exists()) staging.delete();
+            ModuleLog.line("(InstaEclipse | Plugin): installer launch failed: " + error);
             return false;
         }
     }
 
-    public static boolean isInstalled(Context context, String id) {
-        File root = pluginDirectory(context);
-        File[] files = root.listFiles((dir, name) -> name.startsWith(id + "-") && name.endsWith(".apk"));
-        return files != null && files.length > 0;
+    public static boolean isInstalled(Context context, String id) { return findPlugin(context, id) != null; }
+
+    public static boolean isEnabled(Context context, String id) {
+        return isInstalled(context, id) && context.getSharedPreferences("instaeclipse_plugins", Context.MODE_PRIVATE)
+                .getBoolean("enabled_" + id, true);
     }
 
-    public static void uninstall(Context context, String id) {
-        File root = pluginDirectory(context);
-        File[] files = root.listFiles((dir, name) -> name.startsWith(id + "-") && name.endsWith(".apk"));
-        if (files != null) for (File file : files) file.delete();
-        LOADED.remove(id);
+    public static void setEnabled(Context context, String id, boolean enabled) {
+        context.getSharedPreferences("instaeclipse_plugins", Context.MODE_PRIVATE)
+                .edit().putBoolean("enabled_" + id, enabled).apply();
+    }
+
+    /** Removal is deliberately user-authorized through Android's package installer UI. */
+    public static void requestUninstall(Context context, String id) {
+        PackageInfo info = findPlugin(context, id);
+        if (info == null) return;
+        Intent intent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE, Uri.parse("package:" + info.packageName))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(intent);
+    }
+
+    private static PackageInfo findPlugin(Context context, String id) {
+        try {
+            int flags = PackageManager.GET_META_DATA | PackageManager.GET_SIGNING_CERTIFICATES;
+            for (PackageInfo info : context.getPackageManager().getInstalledPackages(flags)) {
+                ApplicationInfo app = info.applicationInfo;
+                if (app != null && app.metaData != null && app.metaData.getBoolean(META_PLUGIN, false)
+                        && id.equals(app.metaData.getString(META_PLUGIN_ID))) return info;
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     private static void loadInstalled(Context context, ClassLoader instagramClassLoader,
-                                      String instagramVersion, File apk) throws Exception {
-        PluginManifest manifest = readManifest(apk);
+                                      String instagramVersion, PackageInfo info) throws Exception {
+        ApplicationInfo app = info.applicationInfo;
+        String id = app.metaData.getString(META_PLUGIN_ID);
+        String version = app.metaData.getString(META_PLUGIN_VERSION);
+        String entrypoint = app.metaData.getString(META_PLUGIN_ENTRYPOINT);
+        if (id == null || version == null || entrypoint == null) throw new SecurityException("plugin metadata incomplete");
+        if (!isEnabled(context, id)) {
+            ModuleLog.line("(InstaEclipse | Plugin): disabled " + id);
+            return;
+        }
+        if (!signerMatchesCore(context, info)) throw new SecurityException("plugin signer does not match InstaEclipse core");
+        PluginManifest manifest = readManifest(app.sourceDir);
         validateManifest(manifest, instagramVersion);
-        if (!signerMatchesModule(context, apk)) throw new SecurityException("untrusted plugin signer");
-        if (LOADED.contains(manifest.id)) return;
+        if (!id.equals(manifest.id) || !version.equals(manifest.version) || !entrypoint.equals(manifest.entrypoint)) {
+            throw new SecurityException("plugin metadata/manifest mismatch");
+        }
+        if (LOADED.contains(id)) return;
 
-        apk.setReadOnly();
-        File optimized = new File(context.getCodeCacheDir(), "instaeclipse-plugins");
-        if (!optimized.exists() && !optimized.mkdirs()) throw new IllegalStateException("plugin cache unavailable");
-        DexClassLoader loader = new DexClassLoader(
-                apk.getAbsolutePath(), optimized.getAbsolutePath(), null,
-                InstaEclipsePlugin.class.getClassLoader());
-        Class<?> entry = Class.forName(manifest.entrypoint, true, loader);
+        // PackageManager-owned installed APK: no writable downloaded DEX is executed.
+        PathClassLoader loader = new PathClassLoader(app.sourceDir, null, InstaEclipsePlugin.class.getClassLoader());
+        Class<?> entry = Class.forName(entrypoint, true, loader);
         Object instance = entry.getDeclaredConstructor().newInstance();
         if (!(instance instanceof InstaEclipsePlugin)) throw new IllegalStateException("entrypoint is not an InstaEclipsePlugin");
         InstaEclipsePlugin plugin = (InstaEclipsePlugin) instance;
-        if (!manifest.id.equals(plugin.getId()) || !manifest.version.equals(plugin.getVersion())) {
+        if (!id.equals(plugin.getId()) || !version.equals(plugin.getVersion())) {
             throw new SecurityException("plugin entrypoint identity mismatch");
         }
+        plugin.onLoad(new PluginContext(context, instagramClassLoader, instagramVersion, new PluginLog(id)));
+        LOADED.add(id);
+        ModuleLog.line("(InstaEclipse | Plugin): loaded " + id + " v" + version);
+    }
+
+    private static boolean signerMatchesCore(Context context, PackageInfo plugin) {
         try {
-            plugin.onLoad(new PluginContext(context, instagramClassLoader, instagramVersion, new PluginLog(manifest.id)));
-        } catch (Throwable error) {
-            throw new Exception("plugin onLoad failed", error);
+            PackageManager pm = context.getPackageManager();
+            PackageInfo core = pm.getPackageArchiveInfo(Module.moduleSourceDir, PackageManager.GET_SIGNING_CERTIFICATES);
+            if (core == null || core.signingInfo == null || plugin.signingInfo == null) return false;
+            return sameSigner(core.signingInfo, plugin.signingInfo);
+        } catch (Throwable ignored) { return false; }
+    }
+
+    private static boolean sameSigner(SigningInfo a, SigningInfo b) throws Exception {
+        return !signatureDigests(a).isEmpty() && signatureDigests(a).equals(signatureDigests(b));
+    }
+
+    private static Set<String> signatureDigests(SigningInfo info) throws Exception {
+        Signature[] signatures = info.hasMultipleSigners() ? info.getApkContentsSigners() : info.getSigningCertificateHistory();
+        Set<String> result = new HashSet<>();
+        if (signatures == null) return result;
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        for (Signature signature : signatures) result.add(hex(digest.digest(signature.toByteArray())));
+        return result;
+    }
+
+    private static PluginManifest readManifest(String apkPath) throws Exception {
+        try (ZipFile zip = new ZipFile(apkPath)) {
+            ZipEntry entry = zip.getEntry("assets/plugin.json");
+            if (entry == null) throw new SecurityException("plugin manifest missing");
+            try (InputStream input = zip.getInputStream(entry)) {
+                PluginManifest manifest = GSON.fromJson(new String(readAll(input), StandardCharsets.UTF_8), PluginManifest.class);
+                if (manifest == null) throw new SecurityException("plugin manifest invalid");
+                return manifest;
+            }
         }
-        LOADED.add(manifest.id);
-        ModuleLog.line("(InstaEclipse | Plugin): loaded " + manifest.id + " v" + manifest.version);
     }
 
     private static void validateManifest(PluginManifest manifest, String instagramVersion) {
@@ -155,72 +198,9 @@ public final class PluginManager {
         if (ig < manifest.min_instagram_version || ig > manifest.max_instagram_version) throw new IllegalStateException("Instagram version incompatible");
     }
 
-    private static PluginManifest readManifest(File apk) throws Exception {
-        try (ZipFile zip = new ZipFile(apk)) {
-            ZipEntry entry = zip.getEntry("assets/plugin.json");
-            if (entry == null) entry = zip.getEntry("plugin.json");
-            if (entry == null) throw new IllegalStateException("plugin manifest missing");
-            try (InputStream input = zip.getInputStream(entry)) {
-                PluginManifest manifest = GSON.fromJson(new String(readAll(input), java.nio.charset.StandardCharsets.UTF_8), PluginManifest.class);
-                if (manifest == null) throw new IllegalStateException("plugin manifest invalid");
-                return manifest;
-            }
-        }
-    }
-
-    private static void copyUriReadOnly(Context context, Uri uri, File target) throws Exception {
-        try (InputStream input = context.getContentResolver().openInputStream(uri);
-             FileOutputStream output = new FileOutputStream(target)) {
-            if (input == null) throw new IllegalStateException("plugin URI cannot be opened");
-            // Android 14+ requires dynamically loaded DEX/JAR/APK files to be read-only.
-            // Mark the file immutable before writing its contents to close the overwrite race.
-            if (!target.setReadOnly()) throw new SecurityException("plugin staging cannot be made read-only");
-            byte[] buffer = new byte[32 * 1024];
-            int read;
-            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
-            output.flush();
-        }
-    }
-
-    private static boolean signerMatchesModule(Context context, File plugin) {
-        try {
-            PackageManager pm = context.getPackageManager();
-            int flags = PackageManager.GET_SIGNING_CERTIFICATES;
-            PackageInfo module = pm.getPackageArchiveInfo(Module.moduleSourceDir, flags);
-            PackageInfo candidate = pm.getPackageArchiveInfo(plugin.getAbsolutePath(), flags);
-            if (module == null || candidate == null || module.signingInfo == null || candidate.signingInfo == null) return false;
-            Set<String> trusted = signatureDigests(module.signingInfo.getSigningCertificateHistory());
-            if (trusted.isEmpty()) trusted = signatureDigests(module.signingInfo.getApkContentsSigners());
-            Set<String> actual = signatureDigests(candidate.signingInfo.getSigningCertificateHistory());
-            if (actual.isEmpty()) actual = signatureDigests(candidate.signingInfo.getApkContentsSigners());
-            for (String digest : actual) if (trusted.contains(digest)) return true;
-        } catch (Throwable ignored) {
-        }
-        return false;
-    }
-
-    private static Set<String> signatureDigests(Signature[] signatures) throws Exception {
-        Set<String> result = new HashSet<>();
-        if (signatures == null) return result;
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        for (Signature signature : signatures) result.add(hex(digest.digest(signature.toByteArray())));
-        return result;
-    }
-
-    private static String sha256(File file) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        try (InputStream input = new FileInputStream(file)) {
-            byte[] buffer = new byte[32 * 1024];
-            int read;
-            while ((read = input.read(buffer)) != -1) digest.update(buffer, 0, read);
-        }
-        return hex(digest.digest());
-    }
-
     private static byte[] readAll(InputStream input) throws Exception {
         java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        int read;
+        byte[] buffer = new byte[8192]; int read;
         while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
         return output.toByteArray();
     }
@@ -231,49 +211,12 @@ public final class PluginManager {
         return out.toString();
     }
 
-    private static File pluginDirectory(Context context) {
-        return new File(context.getFilesDir(), "instaeclipse/plugins");
-    }
-
-    private static void requestPendingTransfer(Context context) {
-        try {
-            Intent intent = new Intent(ACTION_REQUEST_PENDING);
-            intent.setPackage(CommonUtils.MY_PACKAGE_NAME);
-            context.sendBroadcast(intent);
-        } catch (Throwable ignored) {
-        }
-    }
-
-    private static void notifyCompanionInstalled(Context context, String id, String version) {
-        try {
-            Intent intent = new Intent(ACTION_PLUGIN_INSTALLED);
-            intent.setPackage(CommonUtils.MY_PACKAGE_NAME);
-            intent.putExtra(EXTRA_ID, id);
-            intent.putExtra(EXTRA_VERSION, version);
-            context.sendBroadcast(intent);
-        } catch (Throwable ignored) {
-        }
-    }
-
-    private static boolean safeEquals(String expected, String actual) {
-        return expected != null && expected.equals(actual);
-    }
-
-    private static long parseLong(String value) {
-        try { return Long.parseLong(value); } catch (Throwable ignored) { return -1; }
-    }
+    private static long parseLong(String value) { try { return Long.parseLong(value); } catch (Throwable ignored) { return -1; } }
 
     private static final class PluginManifest {
-        int schema;
-        String id;
-        String name;
-        String description;
-        String version;
-        int min_core_api;
-        int max_core_api;
-        String entrypoint;
-        long min_instagram_version;
-        long max_instagram_version;
+        int schema; String id; String name; String description; String version;
+        int min_core_api; int max_core_api; String entrypoint;
+        long min_instagram_version; long max_instagram_version;
     }
 
     private static final class PluginLog implements PluginLogger {
