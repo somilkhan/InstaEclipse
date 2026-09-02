@@ -19,7 +19,6 @@ public final class PluginCatalogManager {
     private static final String CATALOG_URL = "https://raw.githubusercontent.com/somilkhan/InstaEclipse/stability/latest-instagram/plugins/catalog.json";
     private static final String CACHE_FILE = "plugin-catalog.json";
     private static final String ETAG_FILE = "plugin-catalog.etag";
-    private static final long MAX_CACHE_AGE_MS = 24L * 60L * 60L * 1000L;
     private static final Gson GSON = new Gson();
     private PluginCatalogManager() {}
 
@@ -39,7 +38,7 @@ public final class PluginCatalogManager {
         HttpURLConnection connection = (HttpURLConnection) new URL(CATALOG_URL).openConnection();
         connection.setConnectTimeout(10000); connection.setReadTimeout(15000); connection.setInstanceFollowRedirects(true);
         connection.setRequestProperty("Accept", "application/json"); connection.setRequestProperty("Cache-Control", "no-cache");
-        connection.setRequestProperty("User-Agent", "InstaEclipse-FeatureHub/1.1");
+        connection.setRequestProperty("User-Agent", "InstaEclipse-FeatureHub/1.2");
         if (etag != null && !etag.isEmpty()) connection.setRequestProperty("If-None-Match", etag);
         try {
             int code = connection.getResponseCode();
@@ -60,7 +59,8 @@ public final class PluginCatalogManager {
         for (PluginEntry p : catalog.plugins) {
             if (p == null || p.id == null || p.id.isEmpty() || p.version == null || p.version.isEmpty()) throw new IllegalStateException("Invalid plugin catalog entry");
             if (!p.version.matches("\\d+\\.\\d+\\.\\d+")) throw new IllegalStateException("Invalid plugin version: " + p.id);
-            if (p.remote && (p.downloadUrl == null || p.downloadUrl.isEmpty() || p.sha256Url == null || p.sha256Url.isEmpty())) throw new IllegalStateException("Incomplete remote plugin: " + p.id);
+            if (p.remote && (p.downloadUrl == null || p.downloadUrl.isEmpty())) throw new IllegalStateException("Incomplete remote plugin: " + p.id);
+            if (p.remote && (p.sha256 == null || !p.sha256.matches("(?i)[0-9a-f]{64}")) && (p.sha256Url == null || p.sha256Url.isEmpty())) throw new IllegalStateException("Missing plugin integrity metadata: " + p.id);
         }
         return catalog;
     }
@@ -94,6 +94,7 @@ public final class PluginCatalogManager {
         public String channel;
         public boolean remote;
         @SerializedName("download_url") public String downloadUrl;
+        @SerializedName("sha256") public String sha256;
         @SerializedName("sha256_url") public String sha256Url;
         @SerializedName("release_notes") public String releaseNotes;
         @SerializedName("mandatory") public boolean mandatory;
