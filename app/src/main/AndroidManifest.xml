@@ -13,46 +13,27 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.InstaEclipse"
         tools:targetApi="31">
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
+        <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".mods.devops.config.JsonImportActivity"
-            android:exported="true"
-            android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".mods.devops.config.JsonImportActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".mods.devops.config.JsonExportActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".mods.location.LocationPickerActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".ui.theme.ThemeCustomizerActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".utils.plugin.PluginHubActivity" android:exported="false" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".utils.plugin.PluginInstallActivity" android:exported="false" android:theme="@style/Theme.InstaEclipse" />
 
-        <activity
-            android:name=".mods.devops.config.JsonExportActivity"
-            android:exported="true"
-            android:theme="@style/Theme.InstaEclipse" />
-
-        <activity
-            android:name=".mods.location.LocationPickerActivity"
-            android:exported="true"
-            android:theme="@style/Theme.InstaEclipse" />
-
-        <activity
-            android:name=".ui.theme.ThemeCustomizerActivity"
-            android:exported="true"
-            android:theme="@style/Theme.InstaEclipse" />
-
-        <!-- Companion-app service: receives downloaded file from the Xposed module. -->
         <service
             android:name=".mods.media.DownloadSaveService"
             android:exported="true"
             android:foregroundServiceType="dataSync"
             tools:ignore="ExportedService" />
 
-        <!-- Cross-process plugin package handoff. The APK is signer-verified in Instagram. -->
-        <receiver
-            android:name=".utils.plugin.PluginTransferReceiver"
-            android:exported="true">
+        <receiver android:name=".utils.plugin.PluginTransferReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="ps.reso.instaeclipse.ACTION_REQUEST_PENDING_PLUGIN" />
                 <action android:name="ps.reso.instaeclipse.ACTION_PLUGIN_INSTALLED" />
@@ -64,12 +45,9 @@
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Xposed Meta-data -->
         <meta-data android:name="xposedmodule" android:value="true" />
         <meta-data android:name="xposeddescription" android:value="Enhance your Instagram experience" />
         <meta-data android:name="xposedminversion" android:value="82" />
@@ -77,15 +55,13 @@
         <meta-data android:name="xposedscope" android:resource="@array/target_app" />
     </application>
 
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="ManifestOrder,QueryAllPackagesPermission" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="ManifestOrder,QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
