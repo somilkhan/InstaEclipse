@@ -13,6 +13,6 @@
   "max_instagram_version": 385999999,
   "channel": "stable",
   "remote": true,
-  "release_notes": "Adds profile-picture download support across Instagram account avatar surfaces, including profile headers and account avatars outside the expanded picture viewer. Production release.",
+  "release_notes": "Adds profile-picture download support across Instagram account avatar surfaces, including profile headers and account avatars outside the expanded picture viewer. Production release. Automatic signed release pipeline.",
   "mandatory": false
 }
