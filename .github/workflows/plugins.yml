@@ -52,6 +52,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: tools platform-tools "build-tools;35.0.0"
 
       - name: Validate canonical plugin definitions
         shell: bash
@@ -189,6 +191,8 @@ jobs:
       - name: Set up Android SDK
         if: ${{ env.SKIP_RELEASE != 'true' }}
         uses: android-actions/setup-android@v3
+        with:
+          packages: tools platform-tools "build-tools;35.0.0"
 
       - name: Materialize release version into plugin manifest
         if: ${{ env.SKIP_RELEASE != 'true' }}
