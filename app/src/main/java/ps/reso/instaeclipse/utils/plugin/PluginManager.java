@@ -22,12 +22,14 @@ import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.plugin.api.InstaEclipsePlugin;
 import ps.reso.instaeclipse.plugin.api.PluginContext;
 import ps.reso.instaeclipse.plugin.api.PluginLogger;
+import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 /** Runtime for signed, independently installed InstaEclipse plugin APKs. */
 public final class PluginManager {
     public static final int CORE_API = 1;
     public static final String ACTION_INSTALL_PLUGIN = "ps.reso.instaeclipse.ACTION_INSTALL_PLUGIN";
+    public static final String ACTION_REQUEST_PENDING = "ps.reso.instaeclipse.ACTION_REQUEST_PENDING_PLUGIN";
     public static final String ACTION_PLUGIN_INSTALLED = "ps.reso.instaeclipse.ACTION_PLUGIN_INSTALLED";
     public static final String EXTRA_URI = "plugin_uri";
     public static final String EXTRA_ID = "plugin_id";
@@ -53,19 +55,20 @@ public final class PluginManager {
                 try { loadInstalled(context, instagramClassLoader, instagramVersion, info); }
                 catch (Throwable error) { ModuleLog.line("(InstaEclipse | Plugin): rejected " + info.packageName + ": " + error.getMessage()); }
             }
+            requestPendingTransfer(context);
         } catch (Throwable error) { ModuleLog.line("(InstaEclipse | Plugin): bootstrap failed: " + error); }
     }
 
     public static boolean installFromUri(Context context, ClassLoader ignored, String ignoredInstagramVersion, Uri uri, String expectedId, String expectedVersion, String expectedSha256) {
-        try {
-            Intent intent = new Intent(context, PluginInstallActivity.class).setData(uri).putExtra(EXTRA_ID, expectedId).putExtra(EXTRA_VERSION, expectedVersion).putExtra(EXTRA_SHA256, expectedSha256 == null ? "" : expectedSha256).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            context.startActivity(intent); return true;
-        } catch (Throwable error) { ModuleLog.line("(InstaEclipse | Plugin): installer launch failed: " + error); return false; }
+        try { Intent intent = new Intent(context, PluginInstallActivity.class).setData(uri).putExtra(EXTRA_ID, expectedId).putExtra(EXTRA_VERSION, expectedVersion).putExtra(EXTRA_SHA256, expectedSha256 == null ? "" : expectedSha256).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION); context.startActivity(intent); return true; }
+        catch (Throwable error) { ModuleLog.line("(InstaEclipse | Plugin): installer launch failed: " + error); return false; }
     }
     public static boolean isInstalled(Context context, String id) { return findPlugin(context, id) != null; }
     public static boolean isEnabled(Context context, String id) { return isInstalled(context, id) && context.getSharedPreferences("instaeclipse_plugins", Context.MODE_PRIVATE).getBoolean("enabled_" + id, true); }
     public static void setEnabled(Context context, String id, boolean enabled) { context.getSharedPreferences("instaeclipse_plugins", Context.MODE_PRIVATE).edit().putBoolean("enabled_" + id, enabled).apply(); }
     public static void requestUninstall(Context context, String id) { PackageInfo info = findPlugin(context, id); if (info == null) return; context.startActivity(new Intent(Intent.ACTION_UNINSTALL_PACKAGE, Uri.parse("package:" + info.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+    /** Backward-compatible API; removal now goes through Android's user-authorized package uninstall flow. */
+    public static void uninstall(Context context, String id) { requestUninstall(context, id); }
 
     private static PackageInfo findPlugin(Context context, String id) {
         try { int flags = PackageManager.GET_META_DATA | PackageManager.GET_SIGNING_CERTIFICATES; for (PackageInfo info : context.getPackageManager().getInstalledPackages(flags)) { ApplicationInfo app = info.applicationInfo; if (app != null && app.metaData != null && app.metaData.getBoolean(META_PLUGIN, false) && id.equals(app.metaData.getString(META_PLUGIN_ID))) return info; } } catch (Throwable ignored) {}
@@ -86,8 +89,9 @@ public final class PluginManager {
         if (!(instance instanceof InstaEclipsePlugin)) throw new IllegalStateException("entrypoint is not an InstaEclipsePlugin");
         InstaEclipsePlugin plugin = (InstaEclipsePlugin) instance;
         if (!id.equals(plugin.getId()) || !version.equals(plugin.getVersion())) throw new SecurityException("plugin entrypoint identity mismatch");
-        plugin.onLoad(new PluginContext(context, instagramClassLoader, instagramVersion, new PluginLog(id))); LOADED.add(id);
-        ModuleLog.line("(InstaEclipse | Plugin): loaded " + id + " v" + version);
+        try { plugin.onLoad(new PluginContext(context, instagramClassLoader, instagramVersion, new PluginLog(id))); }
+        catch (Throwable error) { throw new Exception("plugin onLoad failed", error); }
+        LOADED.add(id); ModuleLog.line("(InstaEclipse | Plugin): loaded " + id + " v" + version);
     }
 
     private static boolean signerMatchesCore(Context context, PackageInfo plugin) {
@@ -101,6 +105,7 @@ public final class PluginManager {
     private static byte[] readAll(InputStream input) throws Exception { java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream(); byte[] buffer = new byte[8192]; int read; while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read); return output.toByteArray(); }
     private static String hex(byte[] bytes) { StringBuilder out = new StringBuilder(bytes.length * 2); for (byte b : bytes) out.append(String.format(java.util.Locale.US, "%02x", b)); return out.toString(); }
     private static long parseLong(String value) { try { return Long.parseLong(value); } catch (Throwable ignored) { return -1; } }
+    private static void requestPendingTransfer(Context context) { try { Intent intent = new Intent(ACTION_REQUEST_PENDING).setPackage(CommonUtils.MY_PACKAGE_NAME); context.sendBroadcast(intent); } catch (Throwable ignored) {} }
     private static final class PluginManifest { int schema; String id; String name; String description; String version; int min_core_api; int max_core_api; String entrypoint; long min_instagram_version; long max_instagram_version; }
     private static final class PluginLog implements PluginLogger { private final String id; PluginLog(String id) { this.id = id; } @Override public void info(String message) { ModuleLog.line("(InstaEclipse | Plugin/" + id + "): " + message); } @Override public void warn(String message) { ModuleLog.line("(InstaEclipse | Plugin/" + id + "): WARN " + message); } @Override public void error(String message, Throwable throwable) { ModuleLog.line("(InstaEclipse | Plugin/" + id + "): ERROR " + message + " :: " + throwable); } }
 }
