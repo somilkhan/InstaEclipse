@@ -6,14 +6,12 @@ import android.net.Uri;
 
 import androidx.core.content.FileProvider;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
@@ -75,12 +73,15 @@ public final class PluginDownloadManager {
             String sha256 = "";
             File checksum = new File(dir, name + ".sha256");
             if (checksum.exists()) {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(new java.io.FileInputStream(checksum), StandardCharsets.UTF_8))) {
-                    sha256 = reader.readLine();
-                    if (sha256 == null) sha256 = "";
+                try (InputStream input = new java.io.FileInputStream(checksum)) {
+                    java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+                    byte[] bytes = new byte[4096];
+                    int read;
+                    while ((read = input.read(bytes)) != -1) buffer.write(bytes, 0, read);
+                    sha256 = new String(buffer.toByteArray(), StandardCharsets.UTF_8).trim();
                 } catch (Throwable ignored) {}
             }
-            transferFile(context, file, id, version, sha256.trim());
+            transferFile(context, file, id, version, sha256);
         }
     }
 
