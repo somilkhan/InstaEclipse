@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "core_api": 1,
+  "catalog_version": 3,
   "plugins": [
     {
       "id": "pfp-downloader",
@@ -11,8 +11,14 @@
       "max_core_api": 1,
       "min_instagram_version": "384000000",
       "max_instagram_version": "385999999",
-      "download_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin-1.0.0/instaeclipse-pfp-1.0.0.apk",
-      "sha256_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin-1.0.0/SHA256SUMS-release.txt"
+      "packageName": "ps.reso.instaeclipse.plugin.pfp",
+      "entrypoint": "ps.reso.instaeclipse.plugin.pfp.PfpPlugin",
+      "channel": "stable",
+      "remote": true,
+      "download_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin-pfp-v1.0.0/instaeclipse-pfp-1.0.0.apk",
+      "sha256_url": "https://github.com/somilkhan/InstaEclipse/releases/download/plugin-pfp-v1.0.0/SHA256SUMS-release.txt",
+      "release_notes": "Initial independent PFP Downloader release.",
+      "mandatory": false
     }
   ]
 }
