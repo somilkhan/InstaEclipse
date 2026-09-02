@@ -6,9 +6,11 @@ import android.net.Uri;
 
 import androidx.core.content.FileProvider;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -73,11 +75,12 @@ public final class PluginDownloadManager {
             String sha256 = "";
             File checksum = new File(dir, name + ".sha256");
             if (checksum.exists()) {
-                try (InputStream input = new java.io.FileInputStream(checksum)) {
-                    sha256 = new String(input.readAllBytes(), StandardCharsets.UTF_8).trim();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(new java.io.FileInputStream(checksum), StandardCharsets.UTF_8))) {
+                    sha256 = reader.readLine();
+                    if (sha256 == null) sha256 = "";
                 } catch (Throwable ignored) {}
             }
-            transferFile(context, file, id, version, sha256);
+            transferFile(context, file, id, version, sha256.trim());
         }
     }
 
