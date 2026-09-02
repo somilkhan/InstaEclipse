@@ -20,6 +20,11 @@
         <activity android:name=".mods.location.LocationPickerActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
         <activity android:name=".ui.theme.ThemeCustomizerActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
         <service android:name=".mods.media.DownloadSaveService" android:exported="true" android:foregroundServiceType="dataSync" tools:ignore="ExportedService" />
+        <receiver android:name=".utils.plugin.PluginTransferReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="ps.reso.instaeclipse.ACTION_REQUEST_PENDING_PLUGIN" />
+            </intent-filter>
+        </receiver>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
