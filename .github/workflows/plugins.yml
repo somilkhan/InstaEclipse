@@ -2,33 +2,70 @@ name: Plugin Packs
 
 on:
   workflow_dispatch:
+    inputs:
+      plugin:
+        description: "Plugin id (for example pfp-downloader)"
+        required: true
+        type: string
+      version:
+        description: "Semver release version (for example 1.2.0)"
+        required: true
+        type: string
   push:
     tags:
-      - 'plugin-*'
+      - 'plugin/*/v*'
 
 permissions:
   contents: write
 
 env:
-  PLUGIN_ID: pfp-downloader
-  PLUGIN_VERSION: '1.0.0'
-  PLUGIN_VERSION_CODE: '10000'
+  PLUGIN_ROOT: plugins
 
 jobs:
-  pfp:
+  release-plugin:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Resolve plugin version from tag
-        if: startsWith(github.ref, 'refs/tags/plugin-')
+      - name: Resolve plugin id and version
+        shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#plugin-}"
-          IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
-          CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            ID="${{ inputs.plugin }}"
+            VERSION="${{ inputs.version }}"
+          else
+            REF="${GITHUB_REF_NAME}"
+            [[ "$REF" =~ ^plugin/([^/]+)/v([0-9]+\.[0-9]+\.[0-9]+)$ ]] || { echo "Tag must be plugin/<id>/v<major>.<minor>.<patch>"; exit 1; }
+            ID="${BASH_REMATCH[1]}"
+            VERSION="${BASH_REMATCH[2]}"
+          fi
+          [[ "$ID" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || { echo "Invalid plugin id"; exit 1; }
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version must be semver X.Y.Z"; exit 1; }
+          echo "PLUGIN_ID=$ID" >> "$GITHUB_ENV"
           echo "PLUGIN_VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "PLUGIN_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
+
+      - name: Load plugin definition
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST="$PLUGIN_ROOT/$PLUGIN_ID/plugin.json"
+          [[ -f "$MANIFEST" ]] || { echo "Missing $MANIFEST"; exit 1; }
+          python3 - "$MANIFEST" <<'PY'
+          import json, pathlib, sys
+          p = pathlib.Path(sys.argv[1]); d = json.loads(p.read_text())
+          required = ['schema','id','name','description','min_core_api','max_core_api','entrypoint','min_instagram_version','max_instagram_version','module']
+          missing = [x for x in required if x not in d]
+          if missing: raise SystemExit(f"Missing manifest fields: {', '.join(missing)}")
+          if d['id'] != __import__('os').environ['PLUGIN_ID']: raise SystemExit('Manifest id does not match release id')
+          if d['schema'] != 1: raise SystemExit('Unsupported plugin schema')
+          if d['module'].strip() == '': raise SystemExit('Manifest module is empty')
+          PY
+          echo "PLUGIN_MANIFEST=$MANIFEST" >> "$GITHUB_ENV"
+          echo "PLUGIN_MODULE=$(python3 -c 'import json,os; print(json.load(open(os.environ["PLUGIN_MANIFEST"]))["module"])')" >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -40,74 +77,79 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Materialize plugin version metadata
+      - name: Materialize release version
+        shell: bash
         run: |
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path('plugin-pfp/src/main/assets/plugin.json')
-          data = json.loads(path.read_text())
-          data['version'] = '${{ env.PLUGIN_VERSION }}'
-          path.write_text(json.dumps(data, indent=2) + '\n')
+          python3 - "$PLUGIN_MANIFEST" <<'PY'
+          import json, pathlib, sys, os
+          p = pathlib.Path(sys.argv[1]); d = json.loads(p.read_text()); d['version'] = os.environ['PLUGIN_VERSION']; p.write_text(json.dumps(d, indent=2) + '\n')
           PY
 
-      - name: Build unsigned plugin
+      - name: Build debug artifact
         run: |
           chmod +x ./gradlew
-          ./gradlew :plugin-pfp:assembleDebug -PpluginVersion="$PLUGIN_VERSION" -PpluginVersionCode="$PLUGIN_VERSION_CODE" --no-daemon
-          mkdir -p dist
-          cp plugin-pfp/build/outputs/apk/debug/plugin-pfp-debug.apk "dist/instaeclipse-pfp-${PLUGIN_VERSION}-debug.apk"
-          sha256sum "dist/instaeclipse-pfp-${PLUGIN_VERSION}-debug.apk" | tee dist/SHA256SUMS-debug.txt
+          ./gradlew ":$PLUGIN_MODULE:assembleDebug" -PpluginVersion="$PLUGIN_VERSION" -PpluginVersionCode="$((10#$PLUGIN_VERSION_MAJOR * 10000 + 10#$PLUGIN_VERSION_MINOR * 100 + 10#$PLUGIN_VERSION_PATCH))" --no-daemon
 
-      - name: Upload CI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: instaeclipse-pfp-${{ env.PLUGIN_VERSION }}-debug
-          path: dist/*
-
-      - name: Require release signing configuration
-        if: startsWith(github.ref, 'refs/tags/plugin-')
+      - name: Build and sign release artifact
         env:
           KEYSTORE_B64: ${{ secrets.INSTAECLIPSE_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.INSTAECLIPSE_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.INSTAECLIPSE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.INSTAECLIPSE_KEY_PASSWORD }}
+        shell: bash
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_B64" || { echo 'Missing INSTAECLIPSE_KEYSTORE_BASE64'; exit 1; }
-          test -n "$KEYSTORE_PASSWORD" || { echo 'Missing INSTAECLIPSE_KEYSTORE_PASSWORD'; exit 1; }
-          test -n "$KEY_ALIAS" || { echo 'Missing INSTAECLIPSE_KEY_ALIAS'; exit 1; }
-          test -n "$KEY_PASSWORD" || { echo 'Missing INSTAECLIPSE_KEY_PASSWORD'; exit 1; }
+          test -n "$KEYSTORE_B64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo 'Release signing secrets are required'; exit 1; }
           echo "$KEYSTORE_B64" | base64 --decode > /tmp/instaeclipse-release.jks
-
-      - name: Build signed release plugin
-        if: startsWith(github.ref, 'refs/tags/plugin-')
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.INSTAECLIPSE_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.INSTAECLIPSE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.INSTAECLIPSE_KEY_PASSWORD }}
-        run: |
-          ./gradlew :plugin-pfp:assembleRelease --no-daemon \
+          ./gradlew ":$PLUGIN_MODULE:assembleRelease" --no-daemon \
             -PpluginVersion="$PLUGIN_VERSION" \
             -PpluginVersionCode="$PLUGIN_VERSION_CODE" \
             -PpluginReleaseStoreFile=/tmp/instaeclipse-release.jks \
             -PpluginReleaseStorePassword="$KEYSTORE_PASSWORD" \
             -PpluginReleaseKeyAlias="$KEY_ALIAS" \
             -PpluginReleaseKeyPassword="$KEY_PASSWORD"
-          cp "plugin-pfp/build/outputs/apk/release/plugin-pfp-release.apk" "dist/instaeclipse-pfp-${PLUGIN_VERSION}.apk"
-          sha256sum "dist/instaeclipse-pfp-${PLUGIN_VERSION}.apk" > dist/SHA256SUMS-release.txt
+          mkdir -p dist
+          cp "$PLUGIN_MODULE/build/outputs/apk/release/${PLUGIN_MODULE}-release.apk" "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk"
+          sha256sum "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk" > dist/SHA256SUMS-release.txt
+          apksigner verify --verbose "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk"
 
-      - name: Verify release APK is signed
-        if: startsWith(github.ref, 'refs/tags/plugin-')
-        run: apksigner verify --verbose "dist/instaeclipse-pfp-${PLUGIN_VERSION}.apk"
-
-      - name: Publish plugin release
-        if: startsWith(github.ref, 'refs/tags/plugin-')
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "dist/instaeclipse-pfp-${PLUGIN_VERSION}.apk" \
+          gh release create "plugin/${PLUGIN_ID}/v${PLUGIN_VERSION}" \
+            "dist/instaeclipse-${PLUGIN_ID}-${PLUGIN_VERSION}.apk" \
             dist/SHA256SUMS-release.txt \
-            --title "PFP Downloader Pack ${PLUGIN_VERSION}" \
-            --notes "Signed executable InstaEclipse plugin pack. Requires InstaEclipse Core API 1 and the same signing certificate as the installed InstaEclipse core."
+            --title "${PLUGIN_ID} ${PLUGIN_VERSION}" \
+            --notes "Signed InstaEclipse executable plugin. Requires the compatible InstaEclipse Core API and signing identity declared by the plugin manifest."
+
+      - name: Update live catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python3 - "$PLUGIN_MANIFEST" <<'PY'
+          import json, pathlib, os
+          manifest = json.loads(pathlib.Path(os.environ['PLUGIN_MANIFEST']).read_text())
+          apk = f"instaeclipse-{os.environ['PLUGIN_ID']}-{os.environ['PLUGIN_VERSION']}.apk"
+          manifest.update({
+            'version': os.environ['PLUGIN_VERSION'],
+            'download_url': f"https://github.com/${{ github.repository }}/releases/download/plugin/{os.environ['PLUGIN_ID']}/v{os.environ['PLUGIN_VERSION']}/{apk}",
+            'sha256_url': f"https://github.com/${{ github.repository }}/releases/download/plugin/{os.environ['PLUGIN_ID']}/v{os.environ['PLUGIN_VERSION']}/SHA256SUMS-release.txt"
+          })
+          path = pathlib.Path('plugins/catalog.json')
+          catalog = json.loads(path.read_text()) if path.exists() else {'schema': 1, 'core_api': 1, 'plugins': []}
+          entries = [p for p in catalog.get('plugins', []) if p.get('id') != manifest['id']]
+          public = {k:v for k,v in manifest.items() if k not in {'schema','entrypoint','module'}}
+          public['id'] = manifest['id']
+          entries.append(public)
+          entries.sort(key=lambda p: p['id'])
+          catalog['plugins'] = entries
+          path.write_text(json.dumps(catalog, indent=2) + '\n')
+          PY
+          git add plugins/catalog.json
+          git commit -m "chore(plugin): publish ${PLUGIN_ID} v${PLUGIN_VERSION} to catalog" || exit 0
+          git push origin HEAD:${GITHUB_REF_NAME%%/*}
