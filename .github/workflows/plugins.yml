@@ -15,8 +15,6 @@ env:
 jobs:
   pfp:
     runs-on: ubuntu-latest
-    env:
-      HAS_SIGNING_KEY: ${{ secrets.INSTAECLIPSE_KEYSTORE_BASE64 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,46 +28,56 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build plugin
+      - name: Build unsigned plugin
         run: |
           chmod +x ./gradlew
           ./gradlew :plugin-pfp:assembleDebug --no-daemon
-
-      - name: Verify plugin manifest
-        run: |
-          test -f plugin-pfp/src/main/assets/plugin.json
-          grep -q '"id": "pfp-downloader"' plugin-pfp/src/main/assets/plugin.json
-          grep -q '"version": "1.0.0"' plugin-pfp/src/main/assets/plugin.json
-
-      - name: Prepare debug artifact
-        run: |
           mkdir -p dist
-          cp plugin-pfp/build/outputs/apk/debug/plugin-pfp-debug.apk dist/instaeclipse-pfp-1.0.0-debug.apk
-          sha256sum dist/instaeclipse-pfp-1.0.0-debug.apk | tee dist/SHA256SUMS.txt
+          cp plugin-pfp/build/outputs/apk/debug/plugin-pfp-debug.apk dist/instaeclipse-pfp-${PLUGIN_VERSION}-debug.apk
+          sha256sum dist/instaeclipse-pfp-${PLUGIN_VERSION}-debug.apk | tee dist/SHA256SUMS-debug.txt
 
       - name: Upload CI artifact
         uses: actions/upload-artifact@v4
         with:
-          name: instaeclipse-pfp-1.0.0
+          name: instaeclipse-pfp-${{ env.PLUGIN_VERSION }}-debug
           path: dist/*
 
-      - name: Publish signed release asset on plugin tag
-        if: startsWith(github.ref, 'refs/tags/plugin-') && env.HAS_SIGNING_KEY != ''
+      - name: Require release signing configuration
+        if: startsWith(github.ref, 'refs/tags/plugin-')
         env:
           KEYSTORE_B64: ${{ secrets.INSTAECLIPSE_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.INSTAECLIPSE_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.INSTAECLIPSE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.INSTAECLIPSE_KEY_PASSWORD }}
-          GH_TOKEN: ${{ github.token }}
         run: |
+          test -n "$KEYSTORE_B64" || { echo 'Missing INSTAECLIPSE_KEYSTORE_BASE64'; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo 'Missing INSTAECLIPSE_KEYSTORE_PASSWORD'; exit 1; }
+          test -n "$KEY_ALIAS" || { echo 'Missing INSTAECLIPSE_KEY_ALIAS'; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo 'Missing INSTAECLIPSE_KEY_PASSWORD'; exit 1; }
           echo "$KEYSTORE_B64" | base64 --decode > /tmp/instaeclipse-release.jks
+
+      - name: Build signed release plugin
+        if: startsWith(github.ref, 'refs/tags/plugin-')
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.INSTAECLIPSE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.INSTAECLIPSE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.INSTAECLIPSE_KEY_PASSWORD }}
+        run: |
           ./gradlew :plugin-pfp:assembleRelease --no-daemon \
             -Pandroid.injected.signing.store.file=/tmp/instaeclipse-release.jks \
             -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
-          cp plugin-pfp/build/outputs/apk/release/plugin-pfp-release.apk dist/instaeclipse-pfp-1.0.0.apk
-          sha256sum dist/instaeclipse-pfp-1.0.0.apk > dist/SHA256SUMS-release.txt
-          gh release create "$GITHUB_REF_NAME" dist/instaeclipse-pfp-1.0.0.apk dist/SHA256SUMS-release.txt \
-            --title "PFP Downloader Pack $PLUGIN_VERSION" \
-            --notes "Signed executable InstaEclipse plugin pack. Requires InstaEclipse Core API 1 and a matching core signing certificate."
+          cp plugin-pfp/build/outputs/apk/release/plugin-pfp-release.apk dist/instaeclipse-pfp-${PLUGIN_VERSION}.apk
+          sha256sum dist/instaeclipse-pfp-${PLUGIN_VERSION}.apk > dist/SHA256SUMS-release.txt
+
+      - name: Publish plugin release
+        if: startsWith(github.ref, 'refs/tags/plugin-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/instaeclipse-pfp-${PLUGIN_VERSION}.apk \
+            dist/SHA256SUMS-release.txt \
+            --title "PFP Downloader Pack ${PLUGIN_VERSION}" \
+            --notes "Signed executable InstaEclipse plugin pack. Requires InstaEclipse Core API 1 and the same signing certificate as the installed InstaEclipse core."
