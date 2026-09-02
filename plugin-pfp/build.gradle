@@ -11,6 +11,10 @@ android {
     namespace 'ps.reso.instaeclipse.plugins.pfp'
     compileSdk 35
 
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId 'ps.reso.instaeclipse.plugins.pfp'
         minSdk 28
