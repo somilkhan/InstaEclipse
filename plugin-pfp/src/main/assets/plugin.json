@@ -3,11 +3,11 @@
   "id": "pfp-downloader",
   "name": "PFP Downloader Pack",
   "description": "Download expanded Instagram profile pictures without reinstalling InstaEclipse Core.",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "min_core_api": 1,
   "max_core_api": 1,
   "entrypoint": "ps.reso.instaeclipse.plugins.pfp.PfpDownloaderPlugin",
   "module": "plugin-pfp",
-  "min_instagram_version": 384000000,
-  "max_instagram_version": 385999999
+  "min_instagram_version": 443000000,
+  "max_instagram_version": 443999999
 }
