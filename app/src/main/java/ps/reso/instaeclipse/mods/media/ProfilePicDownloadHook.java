@@ -10,14 +10,15 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -29,13 +30,7 @@ import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Built-in profile-picture downloader.
- *
- * This is intentionally part of the Core module, alongside post/story/reel download
- * hooks. It does not replace Instagram's long-click listener; it observes the
- * completed long-click and starts the download independently.
- */
+/** Built-in profile-picture downloader for Instagram profile/avatar surfaces. */
 public final class ProfilePicDownloadHook {
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final ExecutorService IO = Executors.newCachedThreadPool(r -> {
@@ -43,7 +38,7 @@ public final class ProfilePicDownloadHook {
         t.setDaemon(true);
         return t;
     });
-    private static final String TRIGGER_TAG = "instaeclipse_profile_dl_last";
+    private static final MapLike<View, Long> LAST_TRIGGER = new MapLike<>();
     private static volatile boolean installed;
 
     private ProfilePicDownloadHook() {}
@@ -59,14 +54,14 @@ public final class ProfilePicDownloadHook {
 
         XposedHelpers.findAndHookMethod(View.class, "performLongClick", new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
-                onLongClick((View) param.thisObject);
+                handleLongClick((View) param.thisObject);
             }
         });
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             XposedHelpers.findAndHookMethod(View.class, "performLongClick", int.class, new XC_MethodHook() {
                 @Override protected void afterHookedMethod(MethodHookParam param) {
-                    onLongClick((View) param.thisObject);
+                    handleLongClick((View) param.thisObject);
                 }
             });
         }
@@ -74,26 +69,25 @@ public final class ProfilePicDownloadHook {
         ModuleLog.line("(InstaEclipse | ProfileDownload): hook installed");
     }
 
-    private static void onLongClick(View view) {
+    private static void handleLongClick(View view) {
         if (!FeatureFlags.enableProfileDownload || !(view instanceof ImageView)) return;
         if (!isProfilePictureView(view)) return;
 
         long now = android.os.SystemClock.uptimeMillis();
-        Object previous = view.getTag();
-        if (previous instanceof Long && now - (Long) previous < 500L) return;
-        view.setTag(TRIGGER_TAG, now);
+        Long previous = LAST_TRIGGER.get(view);
+        if (previous != null && now - previous < 600L) return;
+        LAST_TRIGGER.put(view, now);
 
-        final Context context = view.getContext();
-        final Activity activity = activityFromContext(context);
-        final String url = extractUrl(view);
+        Context context = view.getContext();
+        Activity activity = activityFromContext(context);
+        String url = extractUrl(view);
         if (url == null) {
-            ModuleLog.line("(IE|ProfileDL) URL extraction failed for " + view.getClass().getName());
+            ModuleLog.line("(IE|ProfileDL) URL extraction failed: " + view.getClass().getName());
             return;
         }
 
-        final String username = activity == null ? null : extractUsername(activity);
-        final String filename = FeedVideoDownloadHook.buildFilename(username, "profile", null, false);
-
+        String username = activity == null ? null : extractUsername(activity);
+        String filename = FeedVideoDownloadHook.buildFilename(username, "profile", null, false);
         MAIN.post(() -> Toast.makeText(context,
                 I18n.t(context, R.string.ig_toast_downloading_profile_pic), Toast.LENGTH_SHORT).show());
 
@@ -104,7 +98,7 @@ public final class ProfilePicDownloadHook {
                     MAIN.post(() -> Toast.makeText(context,
                             I18n.t(context, R.string.ig_toast_profile_pic_saved), Toast.LENGTH_SHORT).show());
                 }
-                ModuleLog.line("(IE|ProfileDL) ✓ profile picture downloaded");
+                ModuleLog.line("(IE|ProfileDL) ✓ saved profile picture");
             } catch (Throwable e) {
                 ModuleLog.line("(IE|ProfileDL) ❌ download: " + e);
                 MAIN.post(() -> Toast.makeText(context,
@@ -115,30 +109,23 @@ public final class ProfilePicDownloadHook {
 
     private static boolean isProfilePictureView(View view) {
         String resource = resourceName(view);
-        String content = String.valueOf(view.getContentDescription()).toLowerCase(java.util.Locale.US);
-        String type = view.getClass().getName().toLowerCase(java.util.Locale.US);
-
-        if (containsProfileMarker(resource) || containsProfileMarker(content) || containsProfileMarker(type)) {
-            return true;
-        }
+        String description = String.valueOf(view.getContentDescription());
+        String type = view.getClass().getName();
+        if (containsProfileMarker(resource) || containsProfileMarker(description) || containsProfileMarker(type)) return true;
 
         View parent = view;
-        for (int i = 0; i < 5 && parent != null; i++) {
+        for (int i = 0; i < 5; i++) {
             parent = parent.getParent() instanceof View ? (View) parent.getParent() : null;
             if (parent == null) break;
-            String pResource = resourceName(parent);
-            String pType = parent.getClass().getName().toLowerCase(java.util.Locale.US);
-            String pContent = String.valueOf(parent.getContentDescription()).toLowerCase(java.util.Locale.US);
-            if (containsProfileMarker(pResource) || containsProfileMarker(pType) || containsProfileMarker(pContent)) {
-                return true;
-            }
+            if (containsProfileMarker(resourceName(parent))
+                    || containsProfileMarker(String.valueOf(parent.getContentDescription()))
+                    || containsProfileMarker(parent.getClass().getName())) return true;
         }
 
-        // Last-resort path for Instagram 443: avatar views can lose resource names after
-        // obfuscation. Only accept a square-ish image with a real Instagram CDN URL.
         String url = extractUrl(view);
         return url != null && isInstagramImageUrl(url)
-                && Math.abs(view.getWidth() - view.getHeight()) <= Math.max(8, view.getResources().getDisplayMetrics().density * 8);
+                && Math.abs(view.getWidth() - view.getHeight()) <= Math.max(8,
+                view.getResources().getDisplayMetrics().density * 8);
     }
 
     private static boolean containsProfileMarker(String value) {
@@ -160,7 +147,6 @@ public final class ProfilePicDownloadHook {
         Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         String direct = inspectObject(view, visited, 0);
         if (direct != null) return direct;
-
         try {
             Object tag = view.getTag();
             if (tag instanceof Uri) return validUrl(tag.toString());
@@ -172,7 +158,6 @@ public final class ProfilePicDownloadHook {
     private static String inspectObject(Object object, Set<Object> visited, int depth) {
         if (object == null || depth > 2 || visited.contains(object)) return null;
         visited.add(object);
-
         if (object instanceof String) return validUrl((String) object);
         if (object instanceof Uri) return validUrl(object.toString());
 
@@ -185,8 +170,7 @@ public final class ProfilePicDownloadHook {
                     if (!(name.contains("url") || name.contains("uri") || name.contains("image")
                             || name.equals("a0e") || name.equals("a0d") || name.equals("a0c"))) continue;
                     field.setAccessible(true);
-                    Object value = field.get(object);
-                    String url = inspectUrlValue(value, visited, depth);
+                    String url = inspectValue(field.get(object), visited, depth);
                     if (url != null) return url;
                 } catch (Throwable ignored) {}
             }
@@ -194,20 +178,19 @@ public final class ProfilePicDownloadHook {
 
         for (String methodName : new String[]{"getUrl", "getImageUrl", "getUri", "getImageUri"}) {
             try {
-                Method m = cls.getMethod(methodName);
-                if (m.getParameterTypes().length != 0) continue;
-                Object value = m.invoke(object);
-                String url = inspectUrlValue(value, visited, depth);
+                Method method = cls.getMethod(methodName);
+                if (method.getParameterTypes().length != 0) continue;
+                String url = inspectValue(method.invoke(object), visited, depth);
                 if (url != null) return url;
             } catch (Throwable ignored) {}
         }
         return null;
     }
 
-    private static String inspectUrlValue(Object value, Set<Object> visited, int depth) {
+    private static String inspectValue(Object value, Set<Object> visited, int depth) {
         if (value == null) return null;
-        String direct = value instanceof String || value instanceof Uri ? validUrl(String.valueOf(value)) : null;
-        if (direct != null) return direct;
+        if (value instanceof String) return validUrl((String) value);
+        if (value instanceof Uri) return validUrl(value.toString());
         return inspectObject(value, visited, depth + 1);
     }
 
@@ -246,6 +229,14 @@ public final class ProfilePicDownloadHook {
     }
 
     private static boolean looksLikeUsername(String value) {
-        return value != null && value.length() <= 30 && value.matches("[a-zA-Z0-9._]+") && !value.matches("\\d+");
+        return value != null && value.length() <= 30
+                && value.matches("[a-zA-Z0-9._]+") && !value.matches("\\d+");
+    }
+
+    /** Weak identity map wrapper avoids retaining Instagram's rapidly-changing views. */
+    private static final class MapLike<K, V> {
+        private final WeakHashMap<K, V> map = new WeakHashMap<>();
+        synchronized V get(K key) { return map.get(key); }
+        synchronized void put(K key, V value) { map.put(key, value); }
     }
 }
