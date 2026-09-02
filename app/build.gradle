@@ -9,7 +9,7 @@ android {
     defaultConfig {
         applicationId "ps.reso.instaeclipse"
         minSdkVersion 28
-        targetSdk 36
+        targetSdk 35
         versionCode 16
         versionName '0.6.0'
 
