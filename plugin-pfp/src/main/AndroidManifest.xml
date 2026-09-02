@@ -6,7 +6,7 @@
         android:supportsRtl="true">
         <meta-data android:name="ps.reso.instaeclipse.plugin" android:value="true" />
         <meta-data android:name="ps.reso.instaeclipse.plugin.id" android:value="pfp-downloader" />
-        <meta-data android:name="ps.reso.instaeclipse.plugin.version" android:value="1.0.0" />
+        <meta-data android:name="ps.reso.instaeclipse.plugin.version" android:value="${pluginVersion}" />
         <meta-data android:name="ps.reso.instaeclipse.plugin.entrypoint" android:value="ps.reso.instaeclipse.plugins.pfp.PfpDownloaderPlugin" />
     </application>
 </manifest>
