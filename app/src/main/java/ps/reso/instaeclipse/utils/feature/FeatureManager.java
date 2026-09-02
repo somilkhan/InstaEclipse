@@ -3,22 +3,21 @@ package ps.reso.instaeclipse.utils.feature;
 import android.app.Application;
 import android.content.pm.PackageInfo;
 
-import de.robv.android.xposed.AndroidAppHelper;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.plugin.PluginManager;
 
 public class FeatureManager {
 
-    /**
-     * The plugin runtime lives inside the injected Instagram process. FeatureManager is
-     * called immediately after Application.attach(), so this is the earliest reliable
-     * common execution point without changing the existing Xposed hook ordering.
-     */
+    /** Bootstrap executable plugin packs inside the injected Instagram process. */
     private static void bootstrapPluginsIfInjected() {
         try {
-            Application application = AndroidAppHelper.currentApplication();
-            if (application == null || !CommonUtils.SUPPORTED_PACKAGES.contains(application.getPackageName())) return;
+            Object value = Class.forName("android.app.ActivityThread")
+                    .getDeclaredMethod("currentApplication")
+                    .invoke(null);
+            if (!(value instanceof Application)) return;
+            Application application = (Application) value;
+            if (!CommonUtils.SUPPORTED_PACKAGES.contains(application.getPackageName())) return;
             PackageInfo info = application.getPackageManager().getPackageInfo(application.getPackageName(), 0);
             PluginManager.bootstrap(application, application.getClassLoader(),
                     String.valueOf(info.getLongVersionCode()));
