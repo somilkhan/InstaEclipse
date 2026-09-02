@@ -61,7 +61,7 @@ jobs:
           manifests=("$PLUGIN_ROOT"/*/plugin.json)
           test "${#manifests[@]}" -gt 0
           python3 - "${manifests[@]}" <<'PY'
-          import json, pathlib, sys
+          import json, pathlib, sys, re
           required = [
               'schema', 'id', 'name', 'description', 'version',
               'min_core_api', 'max_core_api', 'entrypoint', 'packageName',
@@ -75,7 +75,7 @@ jobs:
                   raise SystemExit(f'{path}: missing {", ".join(missing)}')
               if data['schema'] != 1:
                   raise SystemExit(f'{path}: unsupported schema')
-              if not data['version'] or not isinstance(data['version'], str) or not __import__('re').fullmatch(r'\d+\.\d+\.\d+', data['version']):
+              if not isinstance(data['version'], str) or not re.fullmatch(r'\d+\.\d+\.\d+', data['version']):
                   raise SystemExit(f'{path}: invalid semver version')
               module = str(data['module']).strip()
               if not module or module.startswith(':') or '/' in module:
@@ -106,7 +106,7 @@ jobs:
           while IFS= read -r module; do
             echo "==> Building :${module}:assembleDebug"
             ./gradlew ":${module}:assembleDebug" --no-daemon
-          done < <(find . -maxdepth 1 -type d -name 'plugin-*' -printf '%f\n' | sort)
+          done < <(find . -maxdepth 1 -type d -name 'plugin-*' ! -name 'plugin-api' -printf '%f\n' | sort)
 
       - name: Upload debug plugin artifacts
         uses: actions/upload-artifact@v4
