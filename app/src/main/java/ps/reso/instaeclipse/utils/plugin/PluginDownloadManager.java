@@ -21,10 +21,15 @@ public final class PluginDownloadManager {
         return new File(new File(context.getFilesDir(), PENDING_DIR), id + "-" + version + ".apk").exists();
     }
 
+    /** Legacy bridge retained for older in-app feature surfaces. */
+    public static void downloadAndQueue(Context context, String id, String version,
+                                        String url, String sha256, String instagramVersion) throws Exception {
+        downloadAndQueue(context, id, version, "", url, sha256, instagramVersion);
+    }
+
     public static void downloadAndQueue(Context context, String id, String version, String packageName,
                                         String url, String sha256, String instagramVersion) throws Exception {
-        if (id == null || version == null || packageName == null || packageName.isEmpty()
-                || url == null || url.isEmpty()) {
+        if (id == null || version == null || packageName == null || url == null || url.isEmpty()) {
             throw new IllegalArgumentException("plugin download metadata incomplete");
         }
         File dir = new File(context.getFilesDir(), PENDING_DIR);
@@ -37,7 +42,7 @@ public final class PluginDownloadManager {
         connection.setReadTimeout(30000);
         connection.setInstanceFollowRedirects(true);
         connection.setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream");
-        connection.setRequestProperty("User-Agent", "InstaEclipse-FeatureHub/1.1");
+        connection.setRequestProperty("User-Agent", "InstaEclipse-FeatureHub/1.0");
         try {
             int response = connection.getResponseCode();
             if (response < 200 || response >= 300) throw new IllegalStateException("HTTP " + response);
