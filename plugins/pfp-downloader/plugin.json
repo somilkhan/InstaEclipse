@@ -3,7 +3,7 @@
   "id": "pfp-downloader",
   "name": "PFP Downloader Pack",
   "description": "Download profile pictures from Instagram account surfaces without reinstalling InstaEclipse Core.",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "min_core_api": 1,
   "max_core_api": 1,
   "entrypoint": "ps.reso.instaeclipse.plugins.pfp.PfpDownloaderPlugin",
@@ -13,6 +13,6 @@
   "max_instagram_version": 443999999,
   "channel": "stable",
   "remote": true,
-  "release_notes": "Instagram 443 compatibility hotfix. Improves profile-picture detection, preserves Instagram long-press behavior, discovers avatar URLs from view tags/model objects, and preserves the downloaded image MIME format.",
+  "release_notes": "Instagram 443 long-press fix. Keeps Instagram's native long-press behavior while reliably triggering PFP detection and download on profile/avatar image views.",
   "mandatory": false
 }
