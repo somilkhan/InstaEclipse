@@ -3,9 +3,8 @@ package ps.reso.instaeclipse.utils.version;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.AsyncTask;
-
-import ps.reso.instaeclipse.R;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.Gson;
@@ -14,71 +13,81 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-public class VersionCheckUtility {
+import ps.reso.instaeclipse.R;
 
-    private static final String CURRENT_VERSION = "0.6.0"; // Current version
-    private static final String VERSION_CHECK_URL = "https://raw.githubusercontent.com/ReSo7200/InstaEclipse/refs/heads/main/version.json"; // JSON URL
+public final class VersionCheckUtility {
+    private static final String CURRENT_VERSION = "0.6.0";
+    private static final String VERSION_CHECK_URL = "https://raw.githubusercontent.com/somilkhan/InstaEclipse/main/version.json";
+    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "InstaEclipse-VersionCheck");
+        t.setDaemon(true);
+        return t;
+    });
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+
+    private VersionCheckUtility() {}
 
     public static void checkForUpdates(Context context) {
-        new AsyncTask<Void, Void, VersionCheck>() {
-            @Override
-            protected VersionCheck doInBackground(Void... voids) {
-                try {
-                    URL url = new URL(VERSION_CHECK_URL);
-                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                    connection.setRequestMethod("GET");
-
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
+        EXECUTOR.execute(() -> {
+            VersionCheck result = null;
+            try {
+                HttpURLConnection connection = (HttpURLConnection) new URL(VERSION_CHECK_URL).openConnection();
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("User-Agent", "InstaEclipse/" + CURRENT_VERSION);
+                if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                    StringBuilder body = new StringBuilder();
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) body.append(line);
                     }
-                    reader.close();
-
-                    return new Gson().fromJson(response.toString(), VersionCheck.class);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return null;
+                    result = new Gson().fromJson(body.toString(), VersionCheck.class);
                 }
+                connection.disconnect();
+            } catch (Throwable ignored) {
+                // Update checks are best-effort and must never interrupt the home screen.
             }
 
-            @Override
-            protected void onPostExecute(VersionCheck versionCheck) {
-                if (versionCheck != null) {
-                    handleVersionCheckResult(context, versionCheck);
-                } else {
-                    showErrorDialog(context);
+            VersionCheck finalResult = result;
+            MAIN.post(() -> {
+                if (finalResult != null && isNewer(CURRENT_VERSION, finalResult.getLatestVersion())) {
+                    showUpdateDialog(context, finalResult.getUpdateUrl(), finalResult.getLatestVersion());
                 }
-            }
-        }.execute();
+            });
+        });
     }
 
-    private static void handleVersionCheckResult(Context context, VersionCheck versionCheck) {
-        String latestVersion = versionCheck.getLatestVersion();
-        if (!CURRENT_VERSION.equals(latestVersion)) {
-            showUpdateDialog(context, versionCheck.getUpdateUrl(), latestVersion);
+    private static boolean isNewer(String current, String latest) {
+        try {
+            String[] a = current.split("\\.");
+            String[] b = latest.split("\\.");
+            int count = Math.max(a.length, b.length);
+            for (int i = 0; i < count; i++) {
+                int av = i < a.length ? Integer.parseInt(a[i]) : 0;
+                int bv = i < b.length ? Integer.parseInt(b[i]) : 0;
+                if (bv != av) return bv > av;
+            }
+        } catch (Throwable ignored) {
+            return false;
         }
+        return false;
     }
 
     private static void showUpdateDialog(Context context, String updateUrl, String newVersion) {
+        if (updateUrl == null || updateUrl.trim().isEmpty()) return;
         new MaterialAlertDialogBuilder(context)
                 .setTitle(context.getString(R.string.ig_update_title))
                 .setMessage(context.getString(R.string.ig_update_message, newVersion))
-                .setPositiveButton(context.getString(R.string.ig_update_button), (dialogInterface, which) -> {
+                .setPositiveButton(context.getString(R.string.ig_update_button), (dialog, which) -> {
                     Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl));
                     context.startActivity(browserIntent);
                 })
-                .setNegativeButton(context.getString(R.string.ig_update_later), (dialogInterface, which) -> dialogInterface.dismiss())
-                .show();
-    }
-
-    private static void showErrorDialog(Context context) {
-        new MaterialAlertDialogBuilder(context)
-                .setTitle(context.getString(R.string.ig_dialog_error))
-                .setMessage(context.getString(R.string.ig_update_error_message))
-                .setPositiveButton(context.getString(R.string.ig_dialog_ok), (dialogInterface, which) -> dialogInterface.dismiss())
+                .setNegativeButton(context.getString(R.string.ig_update_later), null)
                 .show();
     }
 }
