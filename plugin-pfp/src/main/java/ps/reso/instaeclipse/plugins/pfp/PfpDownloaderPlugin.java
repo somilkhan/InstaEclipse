@@ -49,38 +49,85 @@ public final class PfpDownloaderPlugin implements InstaEclipsePlugin {
         this.context = context;
         context.getLogger().info("PFP Downloader Pack loaded for Instagram " + context.getInstagramVersion());
 
-        // Hook the actual long-click dispatch instead of replacing Instagram's listener.
-        // This preserves Instagram's own long-click behavior whenever it already handles the event.
-        XposedHelpers.findAndHookMethod(View.class, "performLongClick", new XC_MethodHook() {
-            @Override protected void afterHookedMethod(MethodHookParam param) {
-                if (Boolean.TRUE.equals(param.getResult())) return;
-                View view = (View) param.thisObject;
-                if (!(view instanceof ImageView) || !isProfilePicture(view)) return;
-                download(view);
-                param.setResult(true);
-            }
-        });
+        // Instagram may consume the long-click itself and return true. The previous implementation
+        // returned early in that case, so the plugin never ran on the current 443 profile screen.
+        hookLongClick();
     }
 
-    /** Instagram changes avatar resource names across releases; keep matching deliberately broad. */
-    private static boolean isProfilePicture(View view) {
+    private void hookLongClick() {
+        XC_MethodHook hook = new XC_MethodHook() {
+            @Override protected void afterHookedMethod(MethodHookParam param) {
+                View view = (View) param.thisObject;
+                if (!(view instanceof ImageView) || !isProfilePicture(view)) return;
+
+                // Do not cancel Instagram's own long-click/context UI. We only add our action.
+                // Delay slightly so Instagram can finish opening its own menu before our feedback.
+                view.postDelayed(() -> download(view), 80L);
+            }
+        };
+
         try {
-            int id = view.getId();
-            if (id == View.NO_ID) return false;
-            String name = view.getResources().getResourceEntryName(id).toLowerCase();
-            return containsAny(name,
-                    "profile_pic", "profile_picture", "profilephoto", "profile_photo",
-                    "profile_image", "profileimage", "avatar", "user_pic", "user_photo",
-                    "user_image", "account_pic", "account_image", "account_avatar",
-                    "participant_photo", "participant_avatar", "author_avatar", "author_photo");
-        } catch (Throwable ignored) {
-            return false;
+            XposedHelpers.findAndHookMethod(View.class, "performLongClick", hook);
+        } catch (Throwable error) {
+            context.getLogger().warn("performLongClick() hook unavailable: " + error);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                XposedHelpers.findAndHookMethod(View.class, "performLongClick", int.class, hook);
+            } catch (Throwable error) {
+                context.getLogger().warn("performLongClick(int) hook unavailable: " + error);
+            }
         }
     }
 
-    private static boolean containsAny(String value, String... needles) {
-        for (String needle : needles) if (value.contains(needle)) return true;
+    /** Instagram changes avatar resource names across releases; use resource, accessibility and hierarchy hints. */
+    private static boolean isProfilePicture(View view) {
+        try {
+            int id = view.getId();
+            if (id != View.NO_ID) {
+                String name = view.getResources().getResourceEntryName(id).toLowerCase();
+                if (containsProfileHint(name)) return true;
+            }
+        } catch (Throwable ignored) { }
+
+        try {
+            CharSequence description = view.getContentDescription();
+            if (description != null && containsProfileHint(description.toString().toLowerCase())) return true;
+        } catch (Throwable ignored) { }
+
+        if (containsProfileHint(view.getClass().getName().toLowerCase())) return true;
+
+        View parent = view;
+        for (int depth = 0; depth < 5 && parent != null; depth++) {
+            if (containsProfileHint(parent.getClass().getName().toLowerCase())) return true;
+            try {
+                Object tag = parent.getTag();
+                if (tag != null && containsProfileHint(tag.toString().toLowerCase())) return true;
+            } catch (Throwable ignored) { }
+            parent = parent.getParent() instanceof View ? (View) parent.getParent() : null;
+        }
+
+        // Last-resort 443 fallback: avatar views are square and carry an image URL in their
+        // model/tag/fields. This avoids depending on Instagram's obfuscated resource IDs.
+        int width = view.getWidth();
+        int height = view.getHeight();
+        if (width > 0 && height > 0) {
+            float ratio = width / (float) height;
+            if (ratio >= 0.88f && ratio <= 1.12f && extractUrl(view) != null) return true;
+        }
         return false;
+    }
+
+    private static boolean containsProfileHint(String value) {
+        return value.contains("profile_pic") || value.contains("profile_picture") ||
+                value.contains("profilephoto") || value.contains("profile_photo") ||
+                value.contains("profile_image") || value.contains("profileimage") ||
+                value.contains("avatar") || value.contains("user_pic") || value.contains("user_photo") ||
+                value.contains("user_image") || value.contains("account_pic") ||
+                value.contains("account_image") || value.contains("account_avatar") ||
+                value.contains("participant_photo") || value.contains("participant_avatar") ||
+                value.contains("author_avatar") || value.contains("author_photo");
     }
 
     private void download(View view) {
