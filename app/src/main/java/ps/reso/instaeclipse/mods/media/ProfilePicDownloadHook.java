@@ -203,11 +203,17 @@ public final class ProfilePicDownloadHook {
     private static boolean isInstagramImageUrl(String value) {
         try {
             String host = new URL(value).getHost().toLowerCase(java.util.Locale.US);
-            return host.endsWith("instagram.com") || host.endsWith("cdninstagram.com")
-                    || host.endsWith("fbcdn.net") || host.endsWith("fbsbx.com");
+            return isAllowedHost(host, "instagram.com")
+                    || isAllowedHost(host, "cdninstagram.com")
+                    || isAllowedHost(host, "fbcdn.net")
+                    || isAllowedHost(host, "fbsbx.com");
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    private static boolean isAllowedHost(String host, String domain) {
+        return host.equals(domain) || host.endsWith("." + domain);
     }
 
     private static Activity activityFromContext(Context context) {
