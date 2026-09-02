@@ -25,7 +25,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int STORAGE_PERMISSION_REQUEST = 4101;
     private static final String PREFS = "instaeclipse_setup";
     private static final String KEY_STORAGE_PROMPTED = "storage_permission_prompted";
-    private static final int MENU_FEATURE_HUB = 9101;
+    private static final int MENU_PLUGINS = 9101;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
@@ -54,13 +54,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override public boolean onCreateOptionsMenu(Menu menu) {
-        MenuItem hub = menu.add(Menu.NONE, MENU_FEATURE_HUB, Menu.NONE, "Feature Hub");
-        hub.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        MenuItem plugins = menu.add(Menu.NONE, MENU_PLUGINS, Menu.NONE, "Plugins");
+        plugins.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         return true;
     }
 
     @Override public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == MENU_FEATURE_HUB) { startActivity(new android.content.Intent(this, PluginHubActivity.class)); return true; }
+        if (item.getItemId() == MENU_PLUGINS) {
+            startActivity(new android.content.Intent(this, PluginHubActivity.class));
+            return true;
+        }
         return super.onOptionsItemSelected(item);
     }
 
