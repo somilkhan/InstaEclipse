@@ -21,9 +21,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.Map;
 import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -40,7 +38,6 @@ public final class PfpDownloaderPlugin implements InstaEclipsePlugin {
         thread.setDaemon(true);
         return thread;
     });
-    private static final Map<View, Boolean> HOOKED = new WeakHashMap<>();
     private static final String[] URL_FIELDS = {"A0E", "A0D", "A0c", "A0B", "A0f"};
     private static final String[] URL_METHODS = {"getUrl", "getUri", "getImageUrl", "getImageUri", "getSourceUrl"};
     private PluginContext context;
@@ -52,27 +49,25 @@ public final class PfpDownloaderPlugin implements InstaEclipsePlugin {
         this.context = context;
         context.getLogger().info("PFP Downloader Pack loaded for Instagram " + context.getInstagramVersion());
 
-        XposedHelpers.findAndHookMethod(View.class, "onAttachedToWindow", new XC_MethodHook() {
+        // Hook the actual long-click dispatch instead of replacing Instagram's listener.
+        // This preserves Instagram's own long-click behavior whenever it already handles the event.
+        XposedHelpers.findAndHookMethod(View.class, "performLongClick", new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
+                if (Boolean.TRUE.equals(param.getResult())) return;
                 View view = (View) param.thisObject;
-                if (!(view instanceof ImageView) || !isProfilePicture(view) || isHooked(view)) return;
-                markHooked(view);
-                view.setOnLongClickListener(v -> {
-                    download(v);
-                    return true;
-                });
+                if (!(view instanceof ImageView) || !isProfilePicture(view)) return;
+                download(view);
+                param.setResult(true);
             }
         });
     }
 
-    /**
-     * Instagram has changed avatar view/resource names across releases. Keep this
-     * deliberately broad so the feature works for profile headers, search results,
-     * comments, DM/profile surfaces and other account-avatar views.
-     */
+    /** Instagram changes avatar resource names across releases; keep matching deliberately broad. */
     private static boolean isProfilePicture(View view) {
         try {
-            String name = view.getResources().getResourceEntryName(view.getId()).toLowerCase();
+            int id = view.getId();
+            if (id == View.NO_ID) return false;
+            String name = view.getResources().getResourceEntryName(id).toLowerCase();
             return containsAny(name,
                     "profile_pic", "profile_picture", "profilephoto", "profile_photo",
                     "profile_image", "profileimage", "avatar", "user_pic", "user_photo",
@@ -87,9 +82,6 @@ public final class PfpDownloaderPlugin implements InstaEclipsePlugin {
         for (String needle : needles) if (value.contains(needle)) return true;
         return false;
     }
-
-    private static synchronized boolean isHooked(View view) { return HOOKED.containsKey(view); }
-    private static synchronized void markHooked(View view) { HOOKED.put(view, Boolean.TRUE); }
 
     private void download(View view) {
         Context app = view.getContext().getApplicationContext();
@@ -113,6 +105,11 @@ public final class PfpDownloaderPlugin implements InstaEclipsePlugin {
     }
 
     private static String extractUrl(View view) {
+        Object tag = view.getTag();
+        if (tag != null) {
+            String tagged = scanForUrl(tag, 4, Collections.newSetFromMap(new IdentityHashMap<>()));
+            if (tagged != null) return tagged;
+        }
         for (String fieldName : URL_FIELDS) {
             String url = readUrlField(view, fieldName);
             if (url != null) return url;
@@ -193,18 +190,27 @@ public final class PfpDownloaderPlugin implements InstaEclipsePlugin {
         connection.setConnectTimeout(10000);
         connection.setReadTimeout(20000);
         connection.setInstanceFollowRedirects(true);
+        connection.setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8");
         connection.setRequestProperty("User-Agent", "InstaEclipse-PFP/" + BuildConfig.VERSION_NAME);
         try {
             int response = connection.getResponseCode();
             if (response < 200 || response >= 300) throw new IllegalStateException("HTTP " + response);
+
+            String mime = connection.getContentType();
+            if (mime == null || !mime.toLowerCase().startsWith("image/")) mime = "image/jpeg";
+            String extension = extensionForMime(mime);
+
             ContentResolver resolver = context.getContentResolver();
             ContentValues values = new ContentValues();
-            values.put(MediaStore.Images.Media.DISPLAY_NAME, "InstaEclipse_PFP_" + System.currentTimeMillis() + ".jpg");
-            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-            values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/InstaEclipse");
+            values.put(MediaStore.Images.Media.DISPLAY_NAME,
+                    "InstaEclipse_PFP_" + System.currentTimeMillis() + extension);
+            values.put(MediaStore.Images.Media.MIME_TYPE, mime.split(";", 2)[0].trim());
+            values.put(MediaStore.Images.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_PICTURES + "/InstaEclipse");
             values.put(MediaStore.Images.Media.IS_PENDING, 1);
             Uri output = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
             if (output == null) throw new IllegalStateException("MediaStore insert failed");
+
             boolean success = false;
             try (InputStream input = connection.getInputStream(); OutputStream stream = resolver.openOutputStream(output)) {
                 if (stream == null) throw new IllegalStateException("MediaStore output unavailable");
@@ -224,5 +230,14 @@ public final class PfpDownloaderPlugin implements InstaEclipsePlugin {
         } finally {
             connection.disconnect();
         }
+    }
+
+    private static String extensionForMime(String mime) {
+        if (mime == null) return ".jpg";
+        String value = mime.toLowerCase();
+        if (value.contains("png")) return ".png";
+        if (value.contains("webp")) return ".webp";
+        if (value.contains("avif")) return ".avif";
+        return ".jpg";
     }
 }
