@@ -457,4 +457,14 @@
     <string name="ig_update_later">Later</string>
     <string name="ig_update_error_message">Failed to check for updates. Please try again later.</string>
 
+
+    <!-- Profile Tools -->
+    <string name="ig_dialog_menu_profile">Profile</string>
+    <string name="ig_dialog_section_profile">Profile Options</string>
+    <string name="ig_dialog_profile_enable">Enable Profile Tools</string>
+    <string name="ig_dialog_profile_copy_bio">Copy Bio</string>
+    <string name="ig_dialog_profile_download">Profile Download</string>
+    <string name="ig_dialog_profile_copy_username">Copy Username</string>
+    <string name="ig_dialog_profile_follow_back">Follow Back</string>
+
 </resources>
