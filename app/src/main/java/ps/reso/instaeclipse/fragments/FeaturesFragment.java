@@ -907,15 +907,8 @@ public class FeaturesFragment extends Fragment {
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
-                createSwitch(R.drawable.ic_profile_tools, "#0A84FF", getString(R.string.ig_dialog_profile_enable), "enableProfileTools")
-        ));
-
-        defs.add(getString(R.string.feat_options));
-        defs.add(Arrays.asList(
-                createClickable(R.drawable.ic_content_copy, "#0A84FF", getString(R.string.ig_dialog_profile_copy_bio), () -> {}),
-                createClickable(R.drawable.ic_download, "#0A84FF", getString(R.string.ig_dialog_profile_download), () -> {}),
-                createClickable(R.drawable.ic_content_copy, "#0A84FF", getString(R.string.ig_dialog_profile_copy_username), () -> {}),
-                createClickable(R.drawable.ic_person_add, "#0A84FF", getString(R.string.ig_dialog_profile_follow_back), () -> {})
+                createSwitch(R.drawable.ic_profile_tools, "#0A84FF",
+                        getString(R.string.ig_dialog_profile_enable), "enableProfileTools")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_profile), defs);
