@@ -172,6 +172,8 @@ public class FollowStatusHook {
 
     /** Shows the follow-status toast on the main thread if userId is still pending. */
     private static void showFollowToast(String userId, boolean followedBy) {
+        if (FeatureFlags.enableProfileTools) return;
+
         new Handler(Looper.getMainLooper()).post(() -> {
             try {
                 String currentTarget = FollowIndicatorTracker.currentlyViewedUserId;

@@ -62,12 +62,12 @@ public final class ProfilePageToolsHook {
     }
 
     public static void setup(Activity activity) {
-        if (!FeatureFlags.enableProfileDownload || activity == null || activity.isFinishing()) return;
+        if (!FeatureFlags.enableProfileTools || activity == null || activity.isFinishing()) return;
         MAIN.post(() -> wireWhenReady(activity));
     }
 
     private static void wireWhenReady(Activity activity) {
-        if (!FeatureFlags.enableProfileDownload || activity.isFinishing()) return;
+        if (!FeatureFlags.enableProfileTools || activity.isFinishing()) return;
         final View root;
         try { root = activity.getWindow().getDecorView(); } catch (Throwable t) { return; }
         if (root == null) return;
@@ -161,9 +161,12 @@ public final class ProfilePageToolsHook {
 
         if (hasOwnProfileMarker(views)) return null;
 
-        View anchor = betterRight(notification, options);
-        if (anchor == null || !isProfileContext(views)) return null;
-        ViewGroup parent = findActionLinearParent(anchor);
+        View anchor = options != null ? options : notification;
+        if (anchor == null || !isProfileContext(views)) {
+            ModuleLog.line("(InstaEclipse | ProfileTools): profile target not found");
+            return null;
+        }
+        ViewGroup parent = findActionParent(anchor, notification, options);
         if (parent == null) return null;
         int idx = parent.indexOfChild(anchor);
         if (idx < 0) return null;
@@ -191,14 +194,27 @@ public final class ProfilePageToolsHook {
         return profileScore >= 2 || followScore >= 2;
     }
 
-    private static ViewGroup findActionLinearParent(View anchor) {
+    private static ViewGroup findActionParent(View anchor, View notification, View options) {
         View current = anchor;
-        for (int i = 0; i < 5 && current.getParent() instanceof ViewGroup; i++) {
+        for (int i = 0; i < 7 && current.getParent() instanceof ViewGroup; i++) {
             ViewGroup p = (ViewGroup) current.getParent();
-            if (p instanceof LinearLayout && p.getChildCount() >= 2 && p.getChildCount() <= 12) return p;
+            if (p instanceof LinearLayout && p.getChildCount() >= 2 && p.getChildCount() <= 16) {
+                if (notification == null || isDescendant(p, notification)) {
+                    if (options == null || isDescendant(p, options)) return p;
+                }
+            }
             current = p;
         }
         return anchor.getParent() instanceof ViewGroup ? (ViewGroup) anchor.getParent() : null;
+    }
+
+    private static boolean isDescendant(ViewGroup parent, View child) {
+        View current = child;
+        for (int i = 0; i < 8 && current != null; i++) {
+            if (current == parent) return true;
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+        return false;
     }
 
     private static View betterRight(View a, View b) {
@@ -295,7 +311,7 @@ public final class ProfilePageToolsHook {
     }
 
     private static void downloadProfile(Activity activity, ProfileData data) {
-        if (data.profileImageUrl == null) return;
+        if (data.profileImageUrl == null || !FeatureFlags.enableProfileTools) return;
         String filename = FeedVideoDownloadHook.buildFilename(data.username, "profile", null, false);
         IO.execute(() -> {
             try {

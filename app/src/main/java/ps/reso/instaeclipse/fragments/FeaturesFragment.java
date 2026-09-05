@@ -697,6 +697,7 @@ public class FeaturesFragment extends Fragment {
                 createNav(R.drawable.ic_block, "#30D158", getString(R.string.ig_dialog_menu_distraction_free), this::loadDistractionMenu),
                 createNav(R.drawable.ic_settings_gear, "#BF5AF2", getString(R.string.ig_dialog_menu_misc), this::loadMiscMenu),
                 createNav(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_menu_downloader), this::loadDownloaderMenu),
+                createNav(R.drawable.ic_profile_tools, "#0A84FF", getString(R.string.ig_dialog_menu_profile), this::loadProfileMenu),
                 createNav(R.drawable.ic_pin, "#FFD60A", getString(R.string.ig_dialog_menu_location), this::loadLocationMenu),
                 createNav(R.drawable.ic_movie, "#32D74B", getString(R.string.ig_dialog_menu_quality), this::loadQualityMenu),
                 createNav(R.drawable.ic_palette, "#FF2D55", getString(R.string.ig_dialog_menu_theme), this::loadThemeMenu)
@@ -899,6 +900,26 @@ public class FeaturesFragment extends Fragment {
 
         showMenu(getString(R.string.ig_dialog_section_misc), defs);
         currentMenu = "misc";
+    }
+
+    private void loadProfileMenu() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_profile_tools, "#0A84FF", getString(R.string.ig_dialog_profile_enable), "enableProfileTools")
+        ));
+
+        defs.add(getString(R.string.feat_options));
+        defs.add(Arrays.asList(
+                createClickable(R.drawable.ic_content_copy, "#0A84FF", getString(R.string.ig_dialog_profile_copy_bio), () -> {}),
+                createClickable(R.drawable.ic_download, "#0A84FF", getString(R.string.ig_dialog_profile_download), () -> {}),
+                createClickable(R.drawable.ic_content_copy, "#0A84FF", getString(R.string.ig_dialog_profile_copy_username), () -> {}),
+                createClickable(R.drawable.ic_person_add, "#0A84FF", getString(R.string.ig_dialog_profile_follow_back), () -> {})
+        ));
+
+        showMenu(getString(R.string.ig_dialog_section_profile), defs);
+        currentMenu = "profile";
     }
 
     private void loadLocationMenu() {

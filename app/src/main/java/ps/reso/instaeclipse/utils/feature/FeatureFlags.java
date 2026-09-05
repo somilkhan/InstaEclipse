@@ -86,6 +86,7 @@ public class FeatureFlags {
     public static boolean enableStoryDownload = false;
     public static boolean enableReelDownload = false;
     public static boolean enableProfileDownload = false;
+    public static boolean enableProfileTools = false;
     public static boolean downloaderUsernameFolder = false;
     public static boolean downloaderAddTimestamp = false;
     public static String  downloaderCustomPath = "";   // human-readable display path

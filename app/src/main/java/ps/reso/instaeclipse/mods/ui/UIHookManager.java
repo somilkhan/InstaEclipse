@@ -87,6 +87,11 @@ public class UIHookManager {
         // Ghost emoji visibility must update on every resume (reflects current ghost state).
         addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
 
+        // Profile tools are lifecycle-driven from the same MainActivity hook as the rest of IE UI.
+        try { ProfilePageToolsHook.setup(activity); } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse | ProfileTools): setup failed: " + t.getMessage());
+        }
+
         // Cache resource IDs once per IG install (string table lookup is non-trivial).
         ensureIdsCached(activity);
 

@@ -88,6 +88,7 @@ public class SettingsManager {
         editor.putBoolean("enableStoryDownload", FeatureFlags.enableStoryDownload);
         editor.putBoolean("enableReelDownload", FeatureFlags.enableReelDownload);
         editor.putBoolean("enableProfileDownload", FeatureFlags.enableProfileDownload);
+        editor.putBoolean("enableProfileTools", FeatureFlags.enableProfileTools);
         editor.putBoolean("downloaderUsernameFolder", FeatureFlags.downloaderUsernameFolder);
         editor.putBoolean("downloaderAddTimestamp", FeatureFlags.downloaderAddTimestamp);
         editor.putString("downloaderCustomPath", FeatureFlags.downloaderCustomPath);
@@ -177,6 +178,7 @@ public class SettingsManager {
         FeatureFlags.enableStoryDownload = prefs.getBoolean("enableStoryDownload", false);
         FeatureFlags.enableReelDownload = prefs.getBoolean("enableReelDownload", false);
         FeatureFlags.enableProfileDownload = prefs.getBoolean("enableProfileDownload", false);
+        FeatureFlags.enableProfileTools = prefs.getBoolean("enableProfileTools", false);
         FeatureFlags.downloaderUsernameFolder = prefs.getBoolean("downloaderUsernameFolder", false);
         FeatureFlags.downloaderAddTimestamp   = prefs.getBoolean("downloaderAddTimestamp", false);
         FeatureFlags.downloaderCustomPath     = prefs.getString("downloaderCustomPath", "");
