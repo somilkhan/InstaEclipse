@@ -483,8 +483,12 @@ public final class ProfilePageToolsHook {
 
             if (v instanceof ImageView) {
                 String url = extractUrl(v);
-                if (url != null && (containsAny(desc, "profile", "avatar", "profile_pic") || isSquare(v))) {
-                    if (data.profileImageUrl == null || containsAny(desc, "profile", "avatar")) data.profileImageUrl = url;
+                if (url != null) {
+                    int score = profileImageScore(v, desc, root);
+                    if (score > data.profileImageScore) {
+                        data.profileImageScore = score;
+                        data.profileImageUrl = url;
+                    }
                 }
             }
 
@@ -577,6 +581,26 @@ public final class ProfilePageToolsHook {
             current = current.getParent() instanceof View ? (View) current.getParent() : null;
         }
         return null;
+    }
+
+    private static int profileImageScore(View v, String desc, View root) {
+        boolean explicit = containsAny(desc, "profile", "avatar", "profile_pic", "profile_photo");
+        boolean square = isSquare(v);
+        if (!explicit && !square) return Integer.MIN_VALUE;
+        int[] loc = new int[2];
+        try { v.getLocationOnScreen(loc); } catch (Throwable ignored) { return Integer.MIN_VALUE; }
+        int[] rootLoc = new int[2];
+        try { root.getLocationOnScreen(rootLoc); } catch (Throwable ignored) { return Integer.MIN_VALUE; }
+        int y = loc[1] - rootLoc[1];
+        int height = Math.max(root.getHeight(), 1);
+        if (!explicit && (y < 0 || y > height * 0.55f)) return Integer.MIN_VALUE;
+        int size = Math.min(v.getWidth(), v.getHeight());
+        if (!explicit && size < dp(v.getContext(), 48)) return Integer.MIN_VALUE;
+        int score = explicit ? 100 : 20;
+        if (square) score += 20;
+        score += Math.min(size / Math.max(dp(v.getContext(), 1), 1), 120) / 4;
+        if (y >= 0 && y < height * 0.35f) score += 15;
+        return score;
     }
 
     private static boolean isSquare(View v) {
@@ -718,6 +742,7 @@ public final class ProfilePageToolsHook {
         String username;
         String bio;
         String profileImageUrl;
+        int profileImageScore = Integer.MIN_VALUE;
         View followBackView;
     }
 }
