@@ -186,6 +186,7 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     ModuleLog.line("(InstaEclipse) Sync: Updating " + key + " to " + value);
                     android.content.SharedPreferences prefs = ctx.getSharedPreferences("instaeclipse_prefs", Context.MODE_PRIVATE);
                     prefs.edit().putBoolean(key, value).apply(); SettingsManager.loadAllFlags(ctx); FeatureManager.refreshFeatureStatus(); IgThemeEngine.invalidate(); IgThemeHook.refreshCurrentActivity();
+                    if ("enableProfileTools".equals(key)) { try { ProfilePageToolsHook.refresh(UIHookManager.getCurrentActivity()); } catch (Throwable ignored) {} }
                 } else if ("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING".equals(action)) {
                     String key = intent.getStringExtra("key"); String value = intent.getStringExtra("value");
                     ModuleLog.line("(InstaEclipse) Sync: Updating string pref " + key); ctx.getSharedPreferences("instaeclipse_prefs", Context.MODE_PRIVATE).edit().putString(key, value).apply(); SettingsManager.loadAllFlags(ctx); IgThemeEngine.invalidate(); IgThemeHook.refreshCurrentActivity();
