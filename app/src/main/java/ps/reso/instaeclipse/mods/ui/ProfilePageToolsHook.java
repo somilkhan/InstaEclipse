@@ -123,7 +123,12 @@ public final class ProfilePageToolsHook {
     }
 
     private static void wireWhenReady(Activity activity) {
-        if (activity.isFinishing()) return;
+        if (activity.isFinishing() || activity.isDestroyed()) return;
+        if (!FeatureFlags.enableProfileTools) {
+            try { removeInjectedButton(activity.getWindow().getDecorView()); } catch (Throwable ignored) {}
+            WIRED.remove(activity);
+            return;
+        }
         final View root;
         try { root = activity.getWindow().getDecorView(); } catch (Throwable t) { return; }
         if (root == null) return;
@@ -206,6 +211,9 @@ public final class ProfilePageToolsHook {
         button.setBackgroundResource(android.R.drawable.list_selector_background_transparent);
         button.setContentDescription("InstaEclipse profile tools");
         button.setPadding(dp(activity, 8), dp(activity, 8), dp(activity, 8), dp(activity, 8));
+        button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        button.setMinimumWidth(dp(activity, 44));
+        button.setMinimumHeight(dp(activity, 44));
 
         try {
             TypedValue tv = new TypedValue();
@@ -446,7 +454,7 @@ public final class ProfilePageToolsHook {
     }
 
     private static void copy(Activity activity, String label, String value) {
-        if (value == null || value.isEmpty()) return;
+        if (value == null || value.trim().isEmpty()) return;
         ClipboardManager cm = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
         if (cm != null) cm.setPrimaryClip(ClipData.newPlainText(label, value));
     }
@@ -458,10 +466,10 @@ public final class ProfilePageToolsHook {
 
     private static void downloadProfile(Activity activity, ProfileData data) {
         if (data.profileImageUrl == null || !FeatureFlags.enableProfileTools) return;
-        String filename = FeedVideoDownloadHook.buildFilename(data.username, "profile", null, false);
+        String username = data.username == null || data.username.trim().isEmpty() ? "profile" : data.username.trim();
         IO.execute(() -> {
             try {
-                FeedVideoDownloadHook.downloadAndSave(activity, data.profileImageUrl, filename, false, data.username);
+                FeedVideoDownloadHook.downloadAndSave(activity, data.profileImageUrl, username + "_profile.jpg", false, username);
                 ModuleLog.line("(InstaEclipse | ProfileTools): profile saved");
             } catch (Throwable e) {
                 ModuleLog.line("(InstaEclipse | ProfileTools): profile download failed: " + e.getMessage());
