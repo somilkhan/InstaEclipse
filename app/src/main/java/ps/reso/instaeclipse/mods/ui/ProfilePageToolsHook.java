@@ -65,7 +65,7 @@ public final class ProfilePageToolsHook {
             FeatureStatusTracker.setEnabled("ProfileTools", R.string.ig_dialog_profile_enable);
             FeatureStatusTracker.setHooked("ProfileTools");
         }
-        ModuleLog.line("(InstaEclipse | ProfileTools): installer ready");
+        ModuleLog.line("(InstaEclipse | ProfileTools): installed successfully");
     }
 
     public static void setup(Activity activity) {
@@ -113,6 +113,7 @@ public final class ProfilePageToolsHook {
         }
         InjectionTarget target = findInjectionTarget(root);
         if (target != null) {
+            removeStaleInjectedButtons(root, target.parent, target.anchor);
             inject(activity, target);
             WIRED.put(activity, true);
         } else {
@@ -121,12 +122,30 @@ public final class ProfilePageToolsHook {
         }
     }
 
+    private static void removeStaleInjectedButtons(View root, ViewGroup targetParent, View targetAnchor) {
+        List<View> views = flatten(root, 900);
+        for (View v : views) {
+            if (!BUTTON_TAG.equals(v.getTag()) || !(v.getParent() instanceof ViewGroup)) continue;
+            ViewGroup parent = (ViewGroup) v.getParent();
+            if (parent != targetParent || !isAdjacentToAnchor(parent, v, targetAnchor)) {
+                try { parent.removeView(v); } catch (Throwable ignored) {}
+                ModuleLog.line("(InstaEclipse | ProfileTools): stale button removed");
+            }
+        }
+    }
+
+    private static boolean isAdjacentToAnchor(ViewGroup parent, View button, View anchor) {
+        int buttonIndex = parent.indexOfChild(button);
+        int anchorIndex = parent.indexOfChild(anchor);
+        return buttonIndex >= 0 && anchorIndex >= 0 && buttonIndex == anchorIndex + 1;
+    }
+
     private static void removeInjectedButton(View root) {
         List<View> views = flatten(root, 900);
         for (View v : views) {
             if (!BUTTON_TAG.equals(v.getTag())) continue;
             if (v.getParent() instanceof ViewGroup) {
-                try { ((ViewGroup) v.getParent()).removeView(v); } catch (Throwable ignored) {}
+                try { ((ViewGroup) v.getParent()).removeView(v); ModuleLog.line("(InstaEclipse | ProfileTools): button removed"); } catch (Throwable ignored) {}
             }
         }
     }
@@ -166,7 +185,10 @@ public final class ProfilePageToolsHook {
             button.setLayoutParams(new ViewGroup.LayoutParams(size, size));
         }
 
-        button.setOnClickListener(v -> showProfileTools(activity, target.root));
+        button.setOnClickListener(v -> {
+            ModuleLog.line("(InstaEclipse | ProfileTools): action clicked");
+            showProfileTools(activity, target.root);
+        });
         try {
             parent.addView(button, Math.min(target.indexAfterAnchor, parent.getChildCount()));
             button.bringToFront();
@@ -284,7 +306,7 @@ public final class ProfilePageToolsHook {
 
         addAction(content, activity, "Copy Bio", R.drawable.ic_profile_bio,
                 data.bio != null && !data.bio.isEmpty(), () -> copy(activity, "Bio", data.bio));
-        addAction(content, activity, "Profile Download", R.drawable.ic_profile_download,
+        addAction(content, activity, "Download Profile", R.drawable.ic_profile_download,
                 data.profileImageUrl != null, () -> downloadProfile(activity, data));
         addAction(content, activity, "Copy Username", R.drawable.ic_profile_username,
                 data.username != null && !data.username.isEmpty(), () -> copy(activity, "Username", data.username));
@@ -467,7 +489,7 @@ public final class ProfilePageToolsHook {
             if (current.isClickable() && current.isEnabled()) return current;
             current = current.getParent() instanceof View ? (View) current.getParent() : null;
         }
-        return view;
+        return null;
     }
 
     private static boolean isSquare(View v) {
