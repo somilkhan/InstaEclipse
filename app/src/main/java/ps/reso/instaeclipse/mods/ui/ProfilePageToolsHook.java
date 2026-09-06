@@ -208,7 +208,7 @@ public final class ProfilePageToolsHook {
         ImageButton button = new ImageButton(activity);
         button.setTag(BUTTON_TAG);
         button.setImageResource(R.drawable.ic_profile_tools);
-        button.setBackgroundResource(android.R.drawable.list_selector_background_transparent);
+        button.setBackgroundResource(android.R.drawable.btn_default);
         button.setContentDescription("InstaEclipse profile tools");
         button.setPadding(dp(activity, 8), dp(activity, 8), dp(activity, 8), dp(activity, 8));
         button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
