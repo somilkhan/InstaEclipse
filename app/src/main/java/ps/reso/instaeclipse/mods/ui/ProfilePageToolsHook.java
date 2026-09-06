@@ -51,6 +51,8 @@ public final class ProfilePageToolsHook {
         return t;
     });
     private static final WeakHashMap<Activity, Boolean> WIRED = new WeakHashMap<>();
+    private static final WeakHashMap<Activity, Boolean> OBSERVING = new WeakHashMap<>();
+    private static final WeakHashMap<Activity, Long> LAST_SCAN = new WeakHashMap<>();
     private static volatile boolean installed;
 
     private ProfilePageToolsHook() {}
@@ -62,39 +64,65 @@ public final class ProfilePageToolsHook {
     }
 
     public static void setup(Activity activity) {
-        if (!FeatureFlags.enableProfileTools || activity == null || activity.isFinishing()) return;
+        if (activity == null || activity.isFinishing()) return;
         MAIN.post(() -> wireWhenReady(activity));
     }
 
+    /** Re-evaluates the current Instagram screen. Kept lightweight and lifecycle-safe. */
+    public static void refresh(Activity activity) {
+        setup(activity);
+    }
+
     private static void wireWhenReady(Activity activity) {
-        if (!FeatureFlags.enableProfileTools || activity.isFinishing()) return;
+        if (activity.isFinishing()) return;
         final View root;
         try { root = activity.getWindow().getDecorView(); } catch (Throwable t) { return; }
         if (root == null) return;
 
+        if (!FeatureFlags.enableProfileTools) {
+            removeInjectedButton(root);
+            WIRED.remove(activity);
+            return;
+        }
+
+        refreshNow(activity, root);
+        if (!Boolean.TRUE.equals(OBSERVING.get(activity))) {
+            OBSERVING.put(activity, true);
+            root.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+                @Override public void onGlobalLayout() {
+                    if (activity.isFinishing()) return;
+                    long now = android.os.SystemClock.uptimeMillis();
+                    Long previous = LAST_SCAN.get(activity);
+                    if (previous != null && now - previous < 300L) return;
+                    LAST_SCAN.put(activity, now);
+                    refreshNow(activity, root);
+                }
+            });
+        }
+    }
+
+    private static void refreshNow(Activity activity, View root) {
+        if (!FeatureFlags.enableProfileTools) {
+            removeInjectedButton(root);
+            return;
+        }
         InjectionTarget target = findInjectionTarget(root);
         if (target != null) {
             inject(activity, target);
             WIRED.put(activity, true);
-            return;
+        } else {
+            removeInjectedButton(root);
+            WIRED.remove(activity);
         }
+    }
 
-        if (!Boolean.TRUE.equals(WIRED.get(activity))) {
-            root.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
-                int attempts;
-                @Override public void onGlobalLayout() {
-                    if (++attempts > 20 || activity.isFinishing()) {
-                        root.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        return;
-                    }
-                    InjectionTarget t = findInjectionTarget(root);
-                    if (t != null) {
-                        root.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        inject(activity, t);
-                        WIRED.put(activity, true);
-                    }
-                }
-            });
+    private static void removeInjectedButton(View root) {
+        List<View> views = flatten(root, 900);
+        for (View v : views) {
+            if (!BUTTON_TAG.equals(v.getTag())) continue;
+            if (v.getParent() instanceof ViewGroup) {
+                try { ((ViewGroup) v.getParent()).removeView(v); } catch (Throwable ignored) {}
+            }
         }
     }
 
@@ -161,11 +189,15 @@ public final class ProfilePageToolsHook {
 
         if (hasOwnProfileMarker(views)) return null;
 
-        View anchor = options != null ? options : notification;
-        if (anchor == null || !isProfileContext(views)) {
+        if (!isProfileContext(views)) {
             ModuleLog.line("(InstaEclipse | ProfileTools): profile target not found");
             return null;
         }
+
+        // Instagram's header order is normally: notification -> more/options.
+        // Insert immediately after notification so IE sits between those native actions.
+        View anchor = notification != null ? notification : options;
+        if (anchor == null) return null;
         ViewGroup parent = findActionParent(anchor, notification, options);
         if (parent == null) return null;
         int idx = parent.indexOfChild(anchor);
@@ -191,7 +223,7 @@ public final class ProfilePageToolsHook {
             if (containsAny(marker, "profile", "avatar", "profile picture", "user profile", "account_avatar")) profileScore += 2;
             if (containsAny(marker, "follow", "following", "message")) followScore++;
         }
-        return profileScore >= 2 || followScore >= 2;
+        return profileScore >= 2 && followScore >= 1;
     }
 
     private static ViewGroup findActionParent(View anchor, View notification, View options) {
@@ -331,7 +363,9 @@ public final class ProfilePageToolsHook {
             String text = text(v);
             String desc = normalized(description(v) + " " + resourceName(v));
 
-            if (data.followBackView == null && containsAny(desc, "follow back", "follow_back")) data.followBackView = v;
+            if (data.followBackView == null && containsAny(normalized(description(v) + " " + resourceName(v) + " " + text(v)), "follow back", "follow_back")) {
+                data.followBackView = v.isClickable() ? v : clickableAncestor(v);
+            }
 
             if (v instanceof ImageView) {
                 String url = extractUrl(v);
@@ -420,6 +454,15 @@ public final class ProfilePageToolsHook {
             }
         }
         return out;
+    }
+
+    private static View clickableAncestor(View view) {
+        View current = view;
+        for (int i = 0; i < 6 && current != null; i++) {
+            if (current.isClickable() && current.isEnabled()) return current;
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+        return view;
     }
 
     private static boolean isSquare(View v) {
