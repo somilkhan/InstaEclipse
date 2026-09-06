@@ -61,15 +61,6 @@ public final class ProfilePicDownloadHook {
         // to this method, so there is no brittle API-specific overload lookup here.
         XposedHelpers.findAndHookMethod(View.class, "performLongClick", hook);
 
-        XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
-            @Override protected void afterHookedMethod(MethodHookParam param) {
-                try {
-                    Activity activity = (Activity) param.thisObject;
-                    ProfilePageToolsHook.setup(activity);
-                } catch (Throwable ignored) {}
-            }
-        });
-
         ModuleLog.line("(InstaEclipse | ProfileDownload): hook installed");
     }
 
