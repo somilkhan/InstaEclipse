@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.toast.CustomToast;
 import ps.reso.instaeclipse.utils.tracker.FollowIndicatorTracker;
