@@ -208,8 +208,8 @@ public final class ProfilePageToolsHook {
         ImageButton button = new ImageButton(activity);
         button.setTag(BUTTON_TAG);
         button.setImageResource(R.drawable.ic_profile_tools);
-        button.setBackgroundResource(android.R.drawable.btn_default);
-        button.setContentDescription("InstaEclipse profile tools");
+        button.setBackgroundResource(android.R.color.transparent);
+        button.setContentDescription("Profile tools");
         button.setPadding(dp(activity, 8), dp(activity, 8), dp(activity, 8), dp(activity, 8));
         button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         button.setMinimumWidth(dp(activity, 44));
@@ -384,7 +384,8 @@ public final class ProfilePageToolsHook {
     }
 
     private static void showProfileTools(Activity activity, View root) {
-        if (activity == null || activity.isFinishing()) return;
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        if (!FeatureFlags.enableProfileTools) return;
         ProfileData data = collectProfileData(root);
 
         LinearLayout content = new LinearLayout(activity);
@@ -509,7 +510,7 @@ public final class ProfilePageToolsHook {
         Activity activity = activityFromContext(root.getContext());
         if (activity != null) {
             String title = String.valueOf(activity.getTitle()).trim();
-            if (looksLikeUsername(title)) data.username = title;
+            if (data.username == null && looksLikeUsername(title)) data.username = title;
         }
         data.bio = findLikelyBio(views, data.username);
         return data;
