@@ -24,7 +24,6 @@ import java.util.concurrent.Executors;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.R;
-import ps.reso.instaeclipse.mods.ui.ProfilePageToolsHook;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
@@ -62,9 +61,6 @@ public final class ProfilePicDownloadHook {
         // to this method, so there is no brittle API-specific overload lookup here.
         XposedHelpers.findAndHookMethod(View.class, "performLongClick", hook);
 
-        // Profile-page tools use the same built-in Profile Download switch as their master
-        // enable flag. They are wired from the existing UI lifecycle on every profile resume.
-        ProfilePageToolsHook.install();
         XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
                 try {
