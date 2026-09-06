@@ -30,6 +30,7 @@ public class FeatureManager {
         if (FeatureFlags.enableStoryDownload) FeatureStatusTracker.setEnabled("StoryDownload", R.string.ig_dialog_downloader_stories); else FeatureStatusTracker.setDisabled("StoryDownload");
         if (FeatureFlags.enableReelDownload) FeatureStatusTracker.setEnabled("ReelDownload", R.string.ig_dialog_downloader_reels); else FeatureStatusTracker.setDisabled("ReelDownload");
         if (FeatureFlags.enableProfileDownload) FeatureStatusTracker.setEnabled("ProfileDownload", R.string.ig_dialog_downloader_profiles); else FeatureStatusTracker.setDisabled("ProfileDownload");
+        if (FeatureFlags.enableProfileTools) FeatureStatusTracker.setEnabled("ProfileTools", R.string.ig_dialog_profile_enable); else FeatureStatusTracker.setDisabled("ProfileTools");
         if (FeatureFlags.disableDoubleTapLike) FeatureStatusTracker.setEnabled("DisableDoubleTapLike", R.string.ig_dialog_misc_disable_double_tap_like); else FeatureStatusTracker.setDisabled("DisableDoubleTapLike");
     }
 }
