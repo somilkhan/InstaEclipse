@@ -39,6 +39,7 @@ import java.util.concurrent.Executors;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.mods.media.FeedVideoDownloadHook;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
+import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 /** Adds a compact InstaEclipse action beside Instagram's profile header actions. */
@@ -60,6 +61,10 @@ public final class ProfilePageToolsHook {
     public static void install() {
         if (installed) return;
         installed = true;
+        if (FeatureFlags.enableProfileTools) {
+            FeatureStatusTracker.setEnabled("ProfileTools", R.string.ig_dialog_profile_enable);
+            FeatureStatusTracker.setHooked("ProfileTools");
+        }
         ModuleLog.line("(InstaEclipse | ProfileTools): installer ready");
     }
 
