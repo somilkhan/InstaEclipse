@@ -55,6 +55,7 @@ import ps.reso.instaeclipse.mods.misc.DisableVideoAutoPlayHook;
 import ps.reso.instaeclipse.mods.misc.StoryMentionHook;
 import ps.reso.instaeclipse.mods.network.IGNetworkInterceptor;
 import ps.reso.instaeclipse.mods.ui.UIHookManager;
+import ps.reso.instaeclipse.mods.ui.ProfilePageToolsHook;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeEngine;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeHook;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
@@ -168,6 +169,7 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     try { new GhostPermanentViewHook().install(dexKitBridge, lpparam.classLoader); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | ViewOnceMedia): ❌ Failed to hook"); }
                     try { new StoryDownloadHook().install(dexKitBridge, lpparam.classLoader); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | StoryDownload): ❌ Failed to hook"); }
                     try { new ReelDownloadHook().install(dexKitBridge, lpparam.classLoader); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | ReelDownload): ❌ Failed to hook"); }
+                    try { ProfilePageToolsHook.install(); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | ProfileTools): ❌ Failed to hook"); }
                     try { ProfilePicDownloadHook.install(); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | ProfileDownload): ❌ Failed to hook"); }
                     try { interceptor.handleInterceptor(lpparam); } catch (Throwable ignored) { ModuleLog.line("(InstaEclipse | Interceptor): ❌ Failed to hook"); }
                 }
