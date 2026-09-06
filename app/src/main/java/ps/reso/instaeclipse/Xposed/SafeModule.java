@@ -54,6 +54,7 @@ import ps.reso.instaeclipse.mods.misc.DisableVideoAutoPlayHook;
 import ps.reso.instaeclipse.mods.misc.StoryMentionHook;
 import ps.reso.instaeclipse.mods.network.IGNetworkInterceptor;
 import ps.reso.instaeclipse.mods.ui.UIHookManager;
+import ps.reso.instaeclipse.mods.ui.ProfilePageToolsHook;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeHook;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.core.CompatibilityRuntime;
@@ -225,6 +226,9 @@ public final class SafeModule implements IXposedHookLoadPackage, IXposedHookZygo
             StorySelfMenuCompatibilityHook.install(bridge, classLoader);
         });
         run("ReelDownload", () -> new ReelDownloadHook().install(bridge, classLoader));
+        // Profile Tools is independent from the legacy profile-picture long-click hook.
+        // A failure in ProfileDownload must never prevent the profile action UI from loading.
+        run("ProfileTools", ProfilePageToolsHook::install);
         run("ProfileDownload", ProfilePicDownloadHook::install);
         run("Interceptor", () -> new IGNetworkInterceptor().handleInterceptor(lpparam));
         run("MainActivityUI", () -> new UIHookManager().mainActivity(classLoader));
