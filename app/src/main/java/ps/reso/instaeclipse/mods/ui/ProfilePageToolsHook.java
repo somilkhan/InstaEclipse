@@ -16,6 +16,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -38,6 +39,8 @@ import java.util.concurrent.Executors;
 
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.mods.media.FeedVideoDownloadHook;
+import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
@@ -54,6 +57,16 @@ public final class ProfilePageToolsHook {
     private static final WeakHashMap<Activity, Boolean> WIRED = new WeakHashMap<>();
     private static final WeakHashMap<Activity, Boolean> OBSERVING = new WeakHashMap<>();
     private static final WeakHashMap<Activity, Long> LAST_SCAN = new WeakHashMap<>();
+    private static final class OnLayoutListeners {
+        private static final WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener> LISTENERS = new WeakHashMap<>();
+        static synchronized void put(Activity a, ViewTreeObserver.OnGlobalLayoutListener l) { LISTENERS.put(a, l); }
+        static synchronized void remove(Activity a, ViewTreeObserver observer) {
+            ViewTreeObserver.OnGlobalLayoutListener l = LISTENERS.remove(a);
+            if (l != null) {
+                try { observer.removeOnGlobalLayoutListener(l); } catch (Throwable ignored) {}
+            }
+        }
+    }
     private static volatile boolean installed;
 
     private ProfilePageToolsHook() {}
@@ -64,6 +77,22 @@ public final class ProfilePageToolsHook {
         if (FeatureFlags.enableProfileTools) {
             FeatureStatusTracker.setEnabled("ProfileTools", R.string.ig_dialog_profile_enable);
             FeatureStatusTracker.setHooked("ProfileTools");
+        }
+        try {
+            XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    setup((Activity) param.thisObject);
+                }
+            });
+            XposedHelpers.findAndHookMethod(Activity.class, "onDestroy", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    cleanup((Activity) param.thisObject);
+                }
+            });
+        } catch (Throwable t) {
+            installed = false;
+            ModuleLog.line("(InstaEclipse | ProfileTools): lifecycle hook failed: " + t.getClass().getSimpleName());
+            return;
         }
         ModuleLog.line("(InstaEclipse | ProfileTools): installed successfully");
     }
@@ -76,6 +105,21 @@ public final class ProfilePageToolsHook {
     /** Re-evaluates the current Instagram screen. Kept lightweight and lifecycle-safe. */
     public static void refresh(Activity activity) {
         setup(activity);
+    }
+
+    private static void cleanup(Activity activity) {
+        if (activity == null) return;
+        try {
+            View root = activity.getWindow().getDecorView();
+            if (root != null) {
+                removeInjectedButton(root);
+                ViewTreeObserver observer = root.getViewTreeObserver();
+                if (observer.isAlive()) OnLayoutListeners.remove(activity, observer);
+            }
+        } catch (Throwable ignored) {}
+        WIRED.remove(activity);
+        OBSERVING.remove(activity);
+        LAST_SCAN.remove(activity);
     }
 
     private static void wireWhenReady(Activity activity) {
@@ -93,16 +137,18 @@ public final class ProfilePageToolsHook {
         refreshNow(activity, root);
         if (!Boolean.TRUE.equals(OBSERVING.get(activity))) {
             OBSERVING.put(activity, true);
-            root.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            ViewTreeObserver.OnGlobalLayoutListener listener = new ViewTreeObserver.OnGlobalLayoutListener() {
                 @Override public void onGlobalLayout() {
-                    if (activity.isFinishing()) return;
+                    if (activity.isFinishing() || activity.isDestroyed()) return;
                     long now = android.os.SystemClock.uptimeMillis();
                     Long previous = LAST_SCAN.get(activity);
                     if (previous != null && now - previous < 300L) return;
                     LAST_SCAN.put(activity, now);
                     refreshNow(activity, root);
                 }
-            });
+            };
+            OnLayoutListeners.put(activity, listener);
+            root.getViewTreeObserver().addOnGlobalLayoutListener(listener);
         }
     }
 
