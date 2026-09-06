@@ -210,8 +210,9 @@ public final class ProfilePageToolsHook {
             try { v.getLocationOnScreen(loc); } catch (Throwable ignored) { continue; }
             if (loc[1] > screenHeight * 0.45f) continue;
             String marker = normalized(description(v) + " " + resourceName(v));
-            if (containsAny(marker, "notification", "notifications")) notification = betterRight(notification, v);
-            if (containsAny(marker, "more options", "more_option", "overflow", "profile options")) options = betterRight(options, v);
+            if (containsAny(marker, "more options", "more_option", "overflow", "profile options")) {
+                options = betterRight(options, v);
+            }
         }
 
         if (hasOwnProfileMarker(views)) return null;
@@ -221,15 +222,40 @@ public final class ProfilePageToolsHook {
             return null;
         }
 
-        // Instagram's header order is normally: notification -> more/options.
-        // Insert immediately after notification so IE sits between those native actions.
-        View anchor = notification != null ? notification : options;
-        if (anchor == null) return null;
-        ViewGroup parent = findActionParent(anchor, notification, options);
+        // Resolve the action row from the strongest native anchor first. This prevents
+        // an unrelated notification control elsewhere in Instagram's upper half from
+        // becoming the insertion point.
+        if (options != null) {
+            ViewGroup optionsParent = findActionParent(options, null, options);
+            if (optionsParent != null) {
+                notification = findSiblingAction(optionsParent, options, true);
+                View anchor = notification != null ? notification : options;
+                int idx = optionsParent.indexOfChild(anchor);
+                if (idx >= 0) {
+                    ModuleLog.line("(InstaEclipse | ProfileTools): target found");
+                    return new InjectionTarget(root, optionsParent, anchor, idx + 1);
+                }
+            }
+        }
+
+        // Fallback for builds where the options control has no stable semantic marker.
+        // Restrict notification candidates to a compact action-row neighbourhood.
+        for (View v : views) {
+            if (!v.isShown() || v.getWidth() <= 0 || v.getHeight() <= 0) continue;
+            String marker = normalized(description(v) + " " + resourceName(v));
+            if (!containsAny(marker, "notification", "notifications")) continue;
+            ViewGroup parent = findActionParent(v, v, null);
+            if (parent == null) continue;
+            if (notification == null || screenX(v) > screenX(notification)) notification = v;
+        }
+
+        if (notification == null) return null;
+        ViewGroup parent = findActionParent(notification, notification, null);
         if (parent == null) return null;
-        int idx = parent.indexOfChild(anchor);
+        int idx = parent.indexOfChild(notification);
         if (idx < 0) return null;
-        return new InjectionTarget(root, parent, anchor, idx + 1);
+        ModuleLog.line("(InstaEclipse | ProfileTools): target found");
+        return new InjectionTarget(root, parent, notification, idx + 1);
     }
 
     private static boolean hasOwnProfileMarker(List<View> views) {
@@ -274,6 +300,21 @@ public final class ProfilePageToolsHook {
             current = current.getParent() instanceof View ? (View) current.getParent() : null;
         }
         return false;
+    }
+
+    private static View findSiblingAction(ViewGroup parent, View reference, boolean preferNotification) {
+        int refIndex = parent.indexOfChild(reference);
+        if (refIndex < 0) return null;
+        View best = null;
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            if (i == refIndex) continue;
+            View candidate = parent.getChildAt(i);
+            if (!candidate.isShown()) continue;
+            String marker = normalized(description(candidate) + " " + resourceName(candidate));
+            if (preferNotification && !containsAny(marker, "notification", "notifications")) continue;
+            if (best == null || screenX(candidate) < screenX(best)) best = candidate;
+        }
+        return best;
     }
 
     private static View betterRight(View a, View b) {
