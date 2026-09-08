@@ -34,7 +34,6 @@ public final class VersionCheckUtility {
     private VersionCheckUtility() {}
 
     public static void checkForUpdates(Context context) {
-        Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
             VersionCheck result = fetchVersion();
             if (result == null) return;
