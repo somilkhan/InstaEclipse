@@ -5,49 +5,56 @@
     android:id="@+id/card_view"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="2dp"
+    android:layout_marginBottom="4dp"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground"
     app:cardElevation="0dp"
-    app:strokeWidth="0dp"
-    app:cardBackgroundColor="?attr/colorSurfaceContainerLow">
+    app:cardBackgroundColor="@color/dark_gray"
+    app:strokeColor="#252525"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="56dp"
+        android:minHeight="58dp"
         android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="8dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
         android:gravity="center_vertical">
 
         <ImageView
             android:id="@+id/iv_icon"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
             android:layout_marginEnd="12dp"
-            android:padding="6dp"
+            android:padding="7dp"
             android:scaleType="centerInside"
             android:visibility="gone"
-            android:contentDescription="@null" />
+            android:contentDescription="@null"
+            app:tint="@color/white" />
 
         <TextView
             android:id="@+id/tv_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="@color/white"
             android:textSize="15sp"
-            android:textColor="?attr/colorOnSurface" />
+            android:lineSpacingExtra="2dp" />
 
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/sw_toggle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="10dp"
+            android:minWidth="48dp"
             android:minHeight="0dp"
-            android:visibility="gone" />
+            android:visibility="gone"
+            app:thumbTint="@color/white"
+            app:trackTint="@color/gray" />
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
