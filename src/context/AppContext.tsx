@@ -45,22 +45,22 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 const STORAGE_KEY = 'instaeclipse_cache';
 const VERSION_STORAGE_KEY = 'instaeclipse_version_cache_v2';
-const MANAGER_RELEASE_URL = 'https://github.com/somilkhan/InstaEclipse/releases/download/manager/v2.0.0/instaeclipse-2.0.0.apk';
+const ANDROID_RELEASE_URL = 'https://github.com/somilkhan/InstaEclipse/releases/download/android/v2.0.5/instaeclipse-2.0.5.apk';
 
 const DEFAULT_VERSION: AppVersionInfo = {
-  version: '2.0.0', buildNumber: 20, releaseDate: '2026-09-08', channel: 'Stable', isLatest: true,
-  latestVersion: '2.0.0', apkFileName: 'instaeclipse-2.0.0.apk', apkFileSize: '18.5 MB',
-  sha256Hash: '', apkDownloadUrl: MANAGER_RELEASE_URL,
+  version: '2.0.5', buildNumber: 25, releaseDate: '2026-09-09', channel: 'Stable', isLatest: true,
+  latestVersion: '2.0.5', apkFileName: 'instaeclipse-2.0.5.apk', apkFileSize: 'pending',
+  sha256Hash: '', apkDownloadUrl: ANDROID_RELEASE_URL,
   changelog: [
-    'InstaEclipse v2.0.0: consolidated Web Manager and Android core.',
-    'Embedded Web Manager UI with native Android runtime bridge.',
-    'Instagram runtime stability and media-resolution improvements.',
-    'Theme customizer, settings backup/restore and release management.',
+    'InstaEclipse v2.0.5: React/Vite Web Manager is now the Android application UI.',
+    'Bundled Web Manager runs locally inside a secure Android WebView asset origin.',
+    'Native bridge exposes installed-target detection and Instagram launch.',
+    'Instagram runtime stability and media-resolution improvements remain bundled.',
   ],
 };
 
 const INITIAL_LOGS: LogEntry[] = [
-  { id: '1', timestamp: new Date().toLocaleTimeString(), tag: 'INFO', message: 'InstaEclipse v2.0.0 initialized', source: 'InstaEclipse' },
+  { id: '1', timestamp: new Date().toLocaleTimeString(), tag: 'INFO', message: 'InstaEclipse v2.0.5 initialized', source: 'InstaEclipse' },
 ];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -114,7 +114,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const installed = JSON.parse(bridge.getInstalledPackages?.() || '[]') as string[];
       const detected = DETECTED_PACKAGES.find(p => installed.includes(p.pkg));
       if (detected) { setActivePackage(detected.pkg); addLog('SYNC', `Detected installed target: ${detected.pkg}`, 'InstaEclipse'); }
-    } catch (e) { addLog('ERROR', 'Native package detection failed'); }
+      else addLog('SYNC', 'No supported Instagram target detected');
+    } catch { addLog('ERROR', 'Native package detection failed'); }
   }, [addLog]);
 
   const restartInstagram = () => {
@@ -131,16 +132,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const checkForUpdates = async () => {
     setIsCheckingUpdates(true); addLog('SYNC', `Checking release channel: ${versionInfo.channel}...`);
     try {
-      const response = await fetch('https://api.github.com/repos/somilkhan/InstaEclipse/releases/tags/manager/v2.0.0', { headers: { Accept: 'application/vnd.github+json' } });
+      const response = await fetch('https://api.github.com/repos/somilkhan/InstaEclipse/releases/latest', { headers: { Accept: 'application/vnd.github+json' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const release = await response.json();
       const asset = Array.isArray(release.assets) ? release.assets.find((a: any) => a.name.endsWith('.apk')) : null;
-      setVersionInfo(prev => ({ ...prev, latestVersion: '2.0.0', isLatest: prev.version === '2.0.0', apkDownloadUrl: asset?.browser_download_url || MANAGER_RELEASE_URL, apkFileName: asset?.name || prev.apkFileName, apkFileSize: asset?.size ? `${(asset.size / 1048576).toFixed(1)} MB` : prev.apkFileSize }));
-      addLog('INFO', `Release endpoint verified: ${release.tag_name || 'manager/v2.0.0'}`); showToast('Release information verified');
-    } catch (e) { addLog('ERROR', 'Release check failed; no update was claimed'); showToast('Unable to verify releases right now'); }
+      const latest = typeof release.tag_name === 'string' ? release.tag_name.replace(/^android\/v/, '') : versionInfo.latestVersion;
+      const latestIsSemver = /^\d+\.\d+\.\d+$/.test(latest);
+      const latestVersion = latestIsSemver ? latest : versionInfo.latestVersion;
+      setVersionInfo(prev => ({ ...prev, latestVersion, isLatest: prev.version === latestVersion, apkDownloadUrl: asset?.browser_download_url || prev.apkDownloadUrl, apkFileName: asset?.name || prev.apkFileName, apkFileSize: asset?.size ? `${(asset.size / 1048576).toFixed(1)} MB` : prev.apkFileSize }));
+      addLog('INFO', `Release endpoint verified: ${release.tag_name || 'latest'}`); showToast('Release information verified');
+    } catch { addLog('ERROR', 'Release check failed; no update was claimed'); showToast('Unable to verify releases right now'); }
     finally { setIsCheckingUpdates(false); }
   };
-  const applyUpdate = () => { showToast('Download the verified release APK to update InstaEclipse.'); window.open(versionInfo.apkDownloadUrl || MANAGER_RELEASE_URL, '_blank', 'noopener,noreferrer'); };
+  const applyUpdate = () => { showToast('Opening the verified Android release APK.'); window.open(versionInfo.apkDownloadUrl || ANDROID_RELEASE_URL, '_blank', 'noopener,noreferrer'); };
   const setReleaseChannel = (channel: 'Stable' | 'Beta' | 'Nightly') => { setVersionInfo(prev => ({ ...prev, channel })); addLog('SETTINGS', `Release channel switched to: ${channel}`); showToast(`Switched release channel to ${channel}`); };
   const backupSettings = () => {
     const blob = new Blob([JSON.stringify({ app: 'InstaEclipse', version: versionInfo.version, exportedAt: new Date().toISOString(), settings }, null, 2)], { type: 'application/json' });
@@ -150,7 +154,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { const parsed = JSON.parse(jsonString); const incoming = parsed.settings || parsed; setSettings(prev => ({ ...prev, ...incoming })); setStagedChanges({}); addLog('SETTINGS', 'Settings restored from backup'); showToast('Settings restored'); return true; }
     catch (err: any) { addLog('ERROR', `Failed to restore settings: ${err?.message || 'invalid JSON'}`); showToast('Invalid backup file format'); return false; }
   };
-  const resetThemeToPreset = (presetId: number) => { const found = THEME_PRESETS.find(p => p.id === presetId) || THEME_PRESETS[0]; updateSettingImmediately('themePresetId', presetId); updateSettingImmediately('customPalette', { ...found.palette }); showToast(`Switched to "${found.name}" palette`); };
+  const resetThemeToPreset = (presetId: number) => { const found = THEME_PRESETS.find(p => p.id === presetId) || THEME_PRESETS[0]; updateSettingImmediately('themePresetId', presetId); updateSettingImmediately('customPalette', { ...found.palette }); showToast(`Switched to \"${found.name}\" palette`); };
   const updateCustomColorSlot = (slotKey: keyof ThemePalette, colorHex: string) => updateSettingImmediately('customPalette', { ...settings.customPalette, [slotKey]: colorHex });
 
   return <AppContext.Provider value={{ settings, stagedChanges, hasStagedChanges, stageChange, commitStagedChanges, discardStagedChanges, updateSettingImmediately, activePackage, setActivePackage, logs, addLog, clearLogs, toastMessage, showToast, restartInstagram, isRestarting, backupSettings, restoreSettings, openThemeCustomizer, setOpenThemeCustomizer, openLocationPicker, setOpenLocationPicker, openAboutDialog, setOpenAboutDialog, openUpdateModal, setOpenUpdateModal, openApkInstallerModal, setOpenApkInstallerModal, versionInfo, isCheckingUpdates, checkForUpdates, applyUpdate, setReleaseChannel, resetThemeToPreset, updateCustomColorSlot }}>{children}</AppContext.Provider>;
