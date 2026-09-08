@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -11,36 +10,35 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@android:color/transparent"
-        android:elevation="0dp"
-        app:elevation="0dp">
+        android:elevation="0dp">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/top_app_bar"
             android:layout_width="match_parent"
-            android:layout_height="72dp"
+            android:layout_height="76dp"
             android:background="@android:color/transparent"
-            android:paddingStart="18dp"
-            android:paddingEnd="18dp">
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp">
 
             <ImageView
                 android:id="@+id/toolbar_title_image"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
                 android:layout_gravity="start|center_vertical"
                 android:contentDescription="App Logo"
-                android:paddingEnd="6dp"
                 android:src="@drawable/ic_logo"
                 android:scaleType="fitCenter"
-                app:tint="?attr/colorPrimary" />
+                app:tint="@color/white" />
 
             <TextView
                 android:id="@+id/toolbar_title_name"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="10dp"
                 android:text="@string/app_name"
-                android:textAppearance="?attr/textAppearanceTitleLarge"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="@color/white"
+                android:textSize="19sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -48,12 +46,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="end|center_vertical"
-                android:alpha="0.65"
-                android:paddingEnd="2dp"
+                android:background="@drawable/bg_version_pill"
+                android:paddingStart="10dp"
+                android:paddingTop="5dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="5dp"
                 android:text="@string/version"
-                android:textAppearance="?attr/textAppearanceLabelMedium"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                tools:ignore="RtlSymmetry" />
+                android:textColor="@color/bottom_nav_icon"
+                android:textSize="11sp" />
         </com.google.android.material.appbar.MaterialToolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -62,9 +62,9 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="96dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="94dp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
@@ -72,14 +72,14 @@
         android:layout_width="match_parent"
         android:layout_height="64dp"
         android:layout_gravity="bottom"
-        android:layout_marginStart="14dp"
-        android:layout_marginEnd="14dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
         android:layout_marginBottom="12dp"
         android:background="@drawable/bg_navigation_dock"
-        android:elevation="10dp"
+        android:elevation="12dp"
         android:paddingStart="6dp"
         android:paddingEnd="6dp"
-        app:itemIconSize="24dp"
+        app:itemIconSize="22dp"
         app:itemIconTint="@color/navigation_item_colors"
         app:itemTextColor="@color/navigation_item_colors"
         app:itemPaddingTop="5dp"
