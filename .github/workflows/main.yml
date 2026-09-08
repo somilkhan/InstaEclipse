@@ -71,10 +71,9 @@ jobs:
         run: |
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
-          AAPT2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
           AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           test -s "$APK"
-          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > /tmp/manifest.txt
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml > /tmp/manifest.txt
           grep -q 'ps.reso.instaeclipse.MainActivity' /tmp/manifest.txt
           ! unzip -l "$APK" | grep -q 'assets/web/index.html'
           ! unzip -l "$APK" | grep -q 'assets/web/'
