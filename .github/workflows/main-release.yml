@@ -44,16 +44,16 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
-      - name: Skip duplicate release
+      - name: Skip duplicate native release
         id: existing
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
-          if gh release view "manager/v${VERSION}" >/dev/null 2>&1; then
+          if gh release view "android/v${VERSION}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "manager/v${VERSION} already exists"
+            echo "android/v${VERSION} already exists"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -141,7 +141,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
-          gh release create "manager/v${VERSION}" \
+          gh release create "android/v${VERSION}" \
             "dist/instaeclipse-${VERSION}.apk" dist/SHA256SUMS.txt \
             --target "$GITHUB_SHA" \
             --title "InstaEclipse Android ${VERSION}" \
