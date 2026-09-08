@@ -1,4 +1,4 @@
-name: InstaEclipse Web Manager Release
+name: InstaEclipse Android Release
 
 on:
   push:
@@ -6,14 +6,6 @@ on:
       - main
     paths:
       - "app/**"
-      - "src/**"
-      - "public/**"
-      - "index.html"
-      - "package.json"
-      - "package-lock.json"
-      - "vite.config.ts"
-      - "tsconfig*.json"
-      - "tailwind.config.*"
       - "gradle/**"
       - "build.gradle"
       - "settings.gradle"
@@ -31,7 +23,7 @@ concurrency:
 
 jobs:
   release:
-    name: Build, verify and publish Web Manager APK
+    name: Build, verify and publish native Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -65,26 +57,6 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Set up Node.js
-        if: steps.existing.outputs.exists != 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-
-      - name: Build Web Manager
-        if: steps.existing.outputs.exists != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --no-audit --no-fund
-          npm run build
-          test -s dist/index.html
-          rm -rf app/src/main/assets/web
-          mkdir -p app/src/main/assets/web
-          cp -R dist/. app/src/main/assets/web/
-          test -s app/src/main/assets/web/index.html
 
       - name: Set up JDK 17
         if: steps.existing.outputs.exists != 'true'
@@ -151,7 +123,7 @@ jobs:
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           test -s "$APK"
-          unzip -l "$APK" | grep -q 'assets/web/index.html'
+          ! unzip -l "$APK" | grep -q 'assets/web/index.html'
           "$APKSIGNER" verify --verbose "$APK"
           PACKAGE=$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
           VERSION=$("$AAPT" dump badging "$APK" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
@@ -172,5 +144,5 @@ jobs:
           gh release create "manager/v${VERSION}" \
             "dist/instaeclipse-${VERSION}.apk" dist/SHA256SUMS.txt \
             --target "$GITHUB_SHA" \
-            --title "InstaEclipse Web Manager ${VERSION}" \
-            --notes "Signed InstaEclipse APK with the embedded Web Manager UI and Android runtime bridge."
+            --title "InstaEclipse Android ${VERSION}" \
+            --notes "Signed InstaEclipse Android APK. Native Android UI and runtime are shipped together; no Web Manager/WebView UI is required."
