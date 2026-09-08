@@ -44,6 +44,26 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
+      - name: Validate update metadata
+        if: steps.version.outputs.version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f version.json
+          python3 - <<'PY'
+          import json, os, sys
+          version = os.environ["VERSION"]
+          with open("version.json", encoding="utf-8") as f:
+              data = json.load(f)
+          expected_url = f"https://github.com/somilkhan/InstaEclipse/releases/tag/android/v{version}"
+          if data.get("latest_version") != version:
+              raise SystemExit(f"version.json latest_version={data.get('latest_version')!r} does not match {version!r}")
+          if data.get("update_url") != expected_url:
+              raise SystemExit(f"version.json update_url does not match {expected_url}")
+          PY
+
       - name: Skip duplicate native release
         id: existing
         env:
@@ -124,6 +144,7 @@ jobs:
           AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           test -s "$APK"
           ! unzip -l "$APK" | grep -q 'assets/web/index.html'
+          ! unzip -l "$APK" | grep -q 'assets/web/'
           "$APKSIGNER" verify --verbose "$APK"
           PACKAGE=$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
           VERSION=$("$AAPT" dump badging "$APK" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
