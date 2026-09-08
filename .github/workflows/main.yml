@@ -54,11 +54,11 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
-
-      - name: Run Android lint
-        run: ./gradlew lintDebug --stacktrace
+      - name: Run unit tests and lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew :app:testDebugUnitTest :app:lintDebug --no-daemon --stacktrace
 
       - name: Prepare release signing key
         env:
@@ -79,20 +79,22 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo "Core signing secrets are required"; exit 1; }
-          ./gradlew :app:assembleDebug --stacktrace \
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace \
             -PcoreReleaseStoreFile=/tmp/instaeclipse-release.jks \
             -PcoreReleaseStorePassword="$KEYSTORE_PASSWORD" \
             -PcoreReleaseKeyAlias="$KEY_ALIAS" \
             -PcoreReleaseKeyPassword="$KEY_PASSWORD"
 
-      - name: Verify native Android APK exists
+      - name: Verify native Android APK and reject Web Manager
         shell: bash
         run: |
           set -euo pipefail
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'ps/reso/instaeclipse/MainActivity'
-          ! unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'assets/web/index.html'
-          echo "Native Android UI verified; no Web Manager runtime bundle is embedded"
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -l "$APK" | grep -q 'ps/reso/instaeclipse/MainActivity'
+          ! unzip -l "$APK" | grep -q 'assets/web/index.html'
+          ! unzip -l "$APK" | grep -q 'assets/web/'
+          echo "Native Android UI verified; Web Manager runtime is not packaged"
 
       - name: Upload Core APK
         uses: actions/upload-artifact@v4
