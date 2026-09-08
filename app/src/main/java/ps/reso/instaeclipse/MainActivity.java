@@ -21,9 +21,6 @@ import androidx.core.view.WindowCompat;
 
 import org.json.JSONArray;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import ps.reso.instaeclipse.utils.log.Logging;
 import ps.reso.instaeclipse.utils.version.VersionCheckUtility;
 
@@ -47,7 +44,6 @@ public class MainActivity extends AppCompatActivity {
         VersionCheckUtility.checkForUpdates(this);
 
         if (!hasEmbeddedWebManager()) {
-            // Keep the native manager as a safe developer/build fallback.
             setContentView(R.layout.activity_main);
             return;
         }
@@ -62,7 +58,8 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean hasEmbeddedWebManager() {
         try {
-            return getAssets().open("web/index.html") != null;
+            getAssets().open("web/index.html").close();
+            return true;
         } catch (Exception ignored) {
             return false;
         }
@@ -146,15 +143,26 @@ public class MainActivity extends AppCompatActivity {
 
         @android.webkit.JavascriptInterface
         public boolean launchInstagram(String packageName) {
+            if (packageName == null || packageName.trim().isEmpty()) return false;
             try {
                 Intent launch = context.getPackageManager().getLaunchIntentForPackage(packageName);
                 if (launch == null) return false;
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
                 context.startActivity(launch);
                 return true;
             } catch (Exception ignored) {
                 return false;
             }
+        }
+
+        /**
+         * Best-effort real restart from the companion UI. Android does not grant
+         * third-party apps a general force-stop API, so we relaunch the target
+         * package instead of pretending that a restart occurred.
+         */
+        @android.webkit.JavascriptInterface
+        public boolean restartPackage(String packageName) {
+            return launchInstagram(packageName);
         }
 
         @android.webkit.JavascriptInterface
@@ -164,6 +172,20 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception ignored) {
                 return "";
             }
+        }
+
+        @android.webkit.JavascriptInterface
+        public String getCompanionVersion() {
+            try {
+                return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName;
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        public boolean isNativeBridgeAvailable() {
+            return true;
         }
     }
 
