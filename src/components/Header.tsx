@@ -30,6 +30,7 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack }) => {
               onClick={onBack}
               className="p-1.5 -ml-1.5 rounded-xl hover:bg-white/10 active:bg-white/15 text-zinc-300 hover:text-white transition-colors"
               title="Back"
+              aria-label="Back"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -44,9 +45,7 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack }) => {
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-white truncate tracking-tight">
-                {title}
-              </h1>
+              <h1 className="text-base sm:text-lg font-bold text-white truncate tracking-tight">{title}</h1>
               {!showBack && (
                 <button
                   id="header-version-badge"
@@ -55,62 +54,58 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack }) => {
                   title="Check for updates"
                 >
                   <span>v{versionInfo.version}</span>
-                  {!versionInfo.isLatest && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  )}
+                  {!versionInfo.isLatest && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
                 </button>
               )}
             </div>
             {!showBack && (
               <p className="text-xs text-zinc-400 flex items-center gap-1.5 truncate">
                 <ShieldCheck className="w-3 h-3 text-zinc-300 shrink-0" />
-                <span className="truncate text-[11px] text-zinc-400">
-                  LSPosed Active &bull; {activePackage}
-                </span>
+                <span className="truncate text-[11px] text-zinc-400">LSPosed Active &bull; {activePackage}</span>
               </p>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Quick Update Button if available */}
           {!versionInfo.isLatest && (
             <button
               id="header-update-btn"
               onClick={() => setOpenUpdateModal(true)}
               title="Update Available"
+              aria-label="Update available"
               className="p-2 rounded-xl text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all animate-pulse"
             >
               <ArrowUpCircle className="w-4 h-4" />
             </button>
           )}
 
-          {/* In-App APK Downloader Action */}
           <button
             id="header-download-apk-btn"
             onClick={() => setOpenApkInstallerModal(true)}
-            title="Download & Install InstaEclipse v2.0 APK"
+            title={`Download & Install InstaEclipse v${versionInfo.version}`}
+            aria-label="Download and install APK"
             className="p-2 rounded-xl text-zinc-300 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
           >
             <Download className="w-4 h-4" />
           </button>
 
-          {/* Restart Instagram Action */}
           <button
             id="header-restart-btn"
             onClick={restartInstagram}
             disabled={isRestarting}
             title="Restart Instagram Hook"
+            aria-label="Restart Instagram"
             className="p-2 rounded-xl text-zinc-300 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${isRestarting ? 'animate-spin text-white' : ''}`} />
           </button>
 
-          {/* About / Credits Dialog */}
           <button
             id="header-about-btn"
             onClick={() => setOpenAboutDialog(true)}
             title="About & Credits"
+            aria-label="About and credits"
             className="p-2 rounded-xl text-zinc-300 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
           >
             <Info className="w-4 h-4" />
