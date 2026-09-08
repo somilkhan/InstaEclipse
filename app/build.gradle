@@ -10,8 +10,8 @@ android {
         applicationId "ps.reso.instaeclipse"
         minSdkVersion 28
         targetSdk 35
-        versionCode 20
-        versionName '2.0.0'
+        versionCode 21
+        versionName '2.0.1'
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -76,6 +76,5 @@ dependencies {
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core.v361
-
     compileOnly files('libs/api-82.jar')
 }
