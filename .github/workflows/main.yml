@@ -91,7 +91,8 @@ jobs:
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          unzip -l "$APK" | grep -q 'ps/reso/instaeclipse/MainActivity'
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump xmltree "$APK" AndroidManifest.xml > /tmp/manifest.txt
+          grep -q 'ps.reso.instaeclipse.MainActivity' /tmp/manifest.txt
           ! unzip -l "$APK" | grep -q 'assets/web/index.html'
           ! unzip -l "$APK" | grep -q 'assets/web/'
           echo "Native Android UI verified; Web Manager runtime is not packaged"
