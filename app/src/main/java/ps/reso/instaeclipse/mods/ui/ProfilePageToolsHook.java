@@ -1,0 +1,757 @@
+package ps.reso.instaeclipse.mods.ui;
+
+import android.app.Activity;
+import android.app.Dialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.net.URL;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.mods.media.FeedVideoDownloadHook;
+import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XposedHelpers;
+import ps.reso.instaeclipse.utils.feature.FeatureFlags;
+import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
+import ps.reso.instaeclipse.utils.log.ModuleLog;
+
+/** Adds a compact InstaEclipse action beside Instagram's profile header actions. */
+public final class ProfilePageToolsHook {
+    private static final String BUTTON_TAG = "ie_profile_tools_button";
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static final ExecutorService IO = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "InstaEclipse-ProfileTools");
+        t.setDaemon(true);
+        return t;
+    });
+    private static final WeakHashMap<Activity, Boolean> WIRED = new WeakHashMap<>();
+    private static final WeakHashMap<Activity, Boolean> OBSERVING = new WeakHashMap<>();
+    private static final WeakHashMap<Activity, Long> LAST_SCAN = new WeakHashMap<>();
+    private static final class OnLayoutListeners {
+        private static final WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener> LISTENERS = new WeakHashMap<>();
+        static synchronized void put(Activity a, ViewTreeObserver.OnGlobalLayoutListener l) { LISTENERS.put(a, l); }
+        static synchronized void remove(Activity a, ViewTreeObserver observer) {
+            ViewTreeObserver.OnGlobalLayoutListener l = LISTENERS.remove(a);
+            if (l != null) {
+                try { observer.removeOnGlobalLayoutListener(l); } catch (Throwable ignored) {}
+            }
+        }
+    }
+    private static volatile boolean installed;
+
+    private ProfilePageToolsHook() {}
+
+    public static void install() {
+        if (installed) return;
+        installed = true;
+        if (FeatureFlags.enableProfileTools) {
+            FeatureStatusTracker.setEnabled("ProfileTools", R.string.ig_dialog_profile_enable);
+            FeatureStatusTracker.setHooked("ProfileTools");
+        }
+        try {
+            XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    setup((Activity) param.thisObject);
+                }
+            });
+            XposedHelpers.findAndHookMethod(Activity.class, "onDestroy", new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    cleanup((Activity) param.thisObject);
+                }
+            });
+        } catch (Throwable t) {
+            installed = false;
+            ModuleLog.line("(InstaEclipse | ProfileTools): lifecycle hook failed: " + t.getClass().getSimpleName());
+            return;
+        }
+        ModuleLog.line("(InstaEclipse | ProfileTools): installed successfully");
+    }
+
+    public static void setup(Activity activity) {
+        if (activity == null || activity.isFinishing()) return;
+        MAIN.post(() -> wireWhenReady(activity));
+    }
+
+    /** Re-evaluates the current Instagram screen. Kept lightweight and lifecycle-safe. */
+    public static void refresh(Activity activity) {
+        setup(activity);
+    }
+
+    private static void cleanup(Activity activity) {
+        if (activity == null) return;
+        try {
+            View root = activity.getWindow().getDecorView();
+            if (root != null) {
+                removeInjectedButton(root);
+                ViewTreeObserver observer = root.getViewTreeObserver();
+                if (observer.isAlive()) OnLayoutListeners.remove(activity, observer);
+            }
+        } catch (Throwable ignored) {}
+        WIRED.remove(activity);
+        OBSERVING.remove(activity);
+        LAST_SCAN.remove(activity);
+    }
+
+    private static void wireWhenReady(Activity activity) {
+        if (activity.isFinishing() || activity.isDestroyed()) return;
+        if (!FeatureFlags.enableProfileTools) {
+            try { removeInjectedButton(activity.getWindow().getDecorView()); } catch (Throwable ignored) {}
+            WIRED.remove(activity);
+            return;
+        }
+        final View root;
+        try { root = activity.getWindow().getDecorView(); } catch (Throwable t) { return; }
+        if (root == null) return;
+
+        if (!FeatureFlags.enableProfileTools) {
+            removeInjectedButton(root);
+            WIRED.remove(activity);
+            return;
+        }
+
+        refreshNow(activity, root);
+        if (!Boolean.TRUE.equals(OBSERVING.get(activity))) {
+            OBSERVING.put(activity, true);
+            ViewTreeObserver.OnGlobalLayoutListener listener = new ViewTreeObserver.OnGlobalLayoutListener() {
+                @Override public void onGlobalLayout() {
+                    if (activity.isFinishing() || activity.isDestroyed()) return;
+                    long now = android.os.SystemClock.uptimeMillis();
+                    Long previous = LAST_SCAN.get(activity);
+                    if (previous != null && now - previous < 300L) return;
+                    LAST_SCAN.put(activity, now);
+                    refreshNow(activity, root);
+                }
+            };
+            OnLayoutListeners.put(activity, listener);
+            root.getViewTreeObserver().addOnGlobalLayoutListener(listener);
+        }
+    }
+
+    private static void refreshNow(Activity activity, View root) {
+        if (!FeatureFlags.enableProfileTools) {
+            removeInjectedButton(root);
+            return;
+        }
+        InjectionTarget target = findInjectionTarget(root);
+        if (target != null) {
+            removeStaleInjectedButtons(root, target.parent, target.anchor);
+            inject(activity, target);
+            WIRED.put(activity, true);
+        } else {
+            removeInjectedButton(root);
+            WIRED.remove(activity);
+        }
+    }
+
+    private static void removeStaleInjectedButtons(View root, ViewGroup targetParent, View targetAnchor) {
+        List<View> views = flatten(root, 900);
+        for (View v : views) {
+            if (!BUTTON_TAG.equals(v.getTag()) || !(v.getParent() instanceof ViewGroup)) continue;
+            ViewGroup parent = (ViewGroup) v.getParent();
+            if (parent != targetParent || !isAdjacentToAnchor(parent, v, targetAnchor)) {
+                try { parent.removeView(v); } catch (Throwable ignored) {}
+                ModuleLog.line("(InstaEclipse | ProfileTools): stale button removed");
+            }
+        }
+    }
+
+    private static boolean isAdjacentToAnchor(ViewGroup parent, View button, View anchor) {
+        int buttonIndex = parent.indexOfChild(button);
+        int anchorIndex = parent.indexOfChild(anchor);
+        return buttonIndex >= 0 && anchorIndex >= 0 && buttonIndex == anchorIndex + 1;
+    }
+
+    private static void removeInjectedButton(View root) {
+        List<View> views = flatten(root, 900);
+        for (View v : views) {
+            if (!BUTTON_TAG.equals(v.getTag())) continue;
+            if (v.getParent() instanceof ViewGroup) {
+                try { ((ViewGroup) v.getParent()).removeView(v); ModuleLog.line("(InstaEclipse | ProfileTools): button removed"); } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    private static void inject(Activity activity, InjectionTarget target) {
+        ViewGroup parent = target.parent;
+        if (parent == null || parent.findViewWithTag(BUTTON_TAG) != null) return;
+
+        ImageButton button = new ImageButton(activity);
+        button.setTag(BUTTON_TAG);
+        button.setImageResource(R.drawable.ic_profile_tools);
+        button.setBackgroundResource(android.R.color.transparent);
+        button.setContentDescription("Profile tools");
+        button.setPadding(dp(activity, 8), dp(activity, 8), dp(activity, 8), dp(activity, 8));
+        button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        button.setMinimumWidth(dp(activity, 44));
+        button.setMinimumHeight(dp(activity, 44));
+
+        try {
+            TypedValue tv = new TypedValue();
+            if (activity.getTheme().resolveAttribute(android.R.attr.textColorPrimary, tv, true)) {
+                int color = tv.resourceId != 0 ? activity.getResources().getColor(tv.resourceId, activity.getTheme()) : tv.data;
+                button.setImageTintList(ColorStateList.valueOf(color));
+            }
+        } catch (Throwable ignored) {}
+
+        int size = target.anchor.getMeasuredHeight() > 0 ? target.anchor.getMeasuredHeight() : dp(activity, 40);
+        if (parent instanceof LinearLayout) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+            if (target.anchor.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams old = (ViewGroup.MarginLayoutParams) target.anchor.getLayoutParams();
+                lp.leftMargin = old.leftMargin;
+                lp.rightMargin = old.rightMargin;
+                lp.topMargin = old.topMargin;
+                lp.bottomMargin = old.bottomMargin;
+            }
+            lp.gravity = Gravity.CENTER_VERTICAL;
+            button.setLayoutParams(lp);
+        } else {
+            button.setLayoutParams(new ViewGroup.LayoutParams(size, size));
+        }
+
+        button.setOnClickListener(v -> {
+            ModuleLog.line("(InstaEclipse | ProfileTools): action clicked");
+            showProfileTools(activity, target.root);
+        });
+        try {
+            parent.addView(button, Math.min(target.indexAfterAnchor, parent.getChildCount()));
+            button.bringToFront();
+            ModuleLog.line("(InstaEclipse | ProfileTools): button injected");
+        } catch (Throwable e) {
+            ModuleLog.line("(InstaEclipse | ProfileTools): injection failed: " + e.getMessage());
+        }
+    }
+
+    private static InjectionTarget findInjectionTarget(View root) {
+        List<View> views = flatten(root, 750);
+        View notification = null;
+        View options = null;
+        int screenHeight = Math.max(root.getHeight(), 1);
+
+        for (View v : views) {
+            if (!v.isShown() || v.getWidth() <= 0 || v.getHeight() <= 0) continue;
+            int[] loc = new int[2];
+            try { v.getLocationOnScreen(loc); } catch (Throwable ignored) { continue; }
+            if (loc[1] > screenHeight * 0.45f) continue;
+            String marker = normalized(description(v) + " " + resourceName(v));
+            if (containsAny(marker, "more options", "more_option", "overflow", "profile options")) {
+                options = betterRight(options, v);
+            }
+        }
+
+        if (hasOwnProfileMarker(views)) return null;
+
+        if (!isProfileContext(views)) {
+            ModuleLog.line("(InstaEclipse | ProfileTools): profile target not found");
+            return null;
+        }
+
+        // Resolve the action row from the strongest native anchor first. This prevents
+        // an unrelated notification control elsewhere in Instagram's upper half from
+        // becoming the insertion point.
+        if (options != null) {
+            ViewGroup optionsParent = findActionParent(options, null, options);
+            if (optionsParent != null) {
+                notification = findSiblingAction(optionsParent, options, true);
+                View anchor = notification != null ? notification : options;
+                int idx = optionsParent.indexOfChild(anchor);
+                if (idx >= 0) {
+                    ModuleLog.line("(InstaEclipse | ProfileTools): target found");
+                    return new InjectionTarget(root, optionsParent, anchor, idx + 1);
+                }
+            }
+        }
+
+        // Fallback for builds where the options control has no stable semantic marker.
+        // Restrict notification candidates to a compact action-row neighbourhood.
+        for (View v : views) {
+            if (!v.isShown() || v.getWidth() <= 0 || v.getHeight() <= 0) continue;
+            String marker = normalized(description(v) + " " + resourceName(v));
+            if (!containsAny(marker, "notification", "notifications")) continue;
+            ViewGroup parent = findActionParent(v, v, null);
+            if (parent == null) continue;
+            if (notification == null || screenX(v) > screenX(notification)) notification = v;
+        }
+
+        if (notification == null) return null;
+        ViewGroup parent = findActionParent(notification, notification, null);
+        if (parent == null) return null;
+        int idx = parent.indexOfChild(notification);
+        if (idx < 0) return null;
+        ModuleLog.line("(InstaEclipse | ProfileTools): target found");
+        return new InjectionTarget(root, parent, notification, idx + 1);
+    }
+
+    private static boolean hasOwnProfileMarker(List<View> views) {
+        for (View v : views) {
+            if (!v.isShown()) continue;
+            String marker = normalized(description(v) + " " + resourceName(v) + " " + text(v));
+            if (containsAny(marker, "edit profile", "edit_profile", "professional dashboard", "profile dashboard")) return true;
+        }
+        return false;
+    }
+
+    private static boolean isProfileContext(List<View> views) {
+        int profileScore = 0;
+        int followScore = 0;
+        for (View v : views) {
+            if (!v.isShown()) continue;
+            String marker = normalized(description(v) + " " + resourceName(v) + " " + v.getClass().getName());
+            if (containsAny(marker, "profile", "avatar", "profile picture", "user profile", "account_avatar")) profileScore += 2;
+            if (containsAny(marker, "follow", "following", "message")) followScore++;
+        }
+        return profileScore >= 2 && followScore >= 1;
+    }
+
+    private static ViewGroup findActionParent(View anchor, View notification, View options) {
+        View current = anchor;
+        for (int i = 0; i < 7 && current.getParent() instanceof ViewGroup; i++) {
+            ViewGroup p = (ViewGroup) current.getParent();
+            if (p instanceof LinearLayout && p.getChildCount() >= 2 && p.getChildCount() <= 16) {
+                if (notification == null || isDescendant(p, notification)) {
+                    if (options == null || isDescendant(p, options)) return p;
+                }
+            }
+            current = p;
+        }
+        return anchor.getParent() instanceof ViewGroup ? (ViewGroup) anchor.getParent() : null;
+    }
+
+    private static boolean isDescendant(ViewGroup parent, View child) {
+        View current = child;
+        for (int i = 0; i < 8 && current != null; i++) {
+            if (current == parent) return true;
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+        return false;
+    }
+
+    private static View findSiblingAction(ViewGroup parent, View reference, boolean preferNotification) {
+        int refIndex = parent.indexOfChild(reference);
+        if (refIndex < 0) return null;
+        View best = null;
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            if (i == refIndex) continue;
+            View candidate = parent.getChildAt(i);
+            if (!candidate.isShown()) continue;
+            String marker = normalized(description(candidate) + " " + resourceName(candidate));
+            if (preferNotification && !containsAny(marker, "notification", "notifications")) continue;
+            if (best == null || screenX(candidate) < screenX(best)) best = candidate;
+        }
+        return best;
+    }
+
+    private static View betterRight(View a, View b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return screenX(b) >= screenX(a) ? b : a;
+    }
+
+    private static int screenX(View v) {
+        int[] loc = new int[2];
+        try { v.getLocationOnScreen(loc); } catch (Throwable ignored) {}
+        return loc[0];
+    }
+
+    private static void showProfileTools(Activity activity, View root) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        if (!FeatureFlags.enableProfileTools) return;
+        ProfileData data = collectProfileData(root);
+
+        LinearLayout content = new LinearLayout(activity);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(activity, 20), dp(activity, 12), dp(activity, 20), dp(activity, 12));
+
+        TextView header = new TextView(activity);
+        header.setText(data.username == null || data.username.isEmpty() ? "Profile tools" : "@" + data.username);
+        header.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        header.setTypeface(null, android.graphics.Typeface.BOLD);
+        header.setTextColor(resolvePrimaryText(activity));
+        header.setPadding(dp(activity, 4), dp(activity, 4), dp(activity, 4), dp(activity, 14));
+        content.addView(header);
+
+        addAction(content, activity, "Copy Bio", R.drawable.ic_profile_bio,
+                data.bio != null && !data.bio.isEmpty(), () -> copy(activity, "Bio", data.bio));
+        addAction(content, activity, "Download Profile", R.drawable.ic_profile_download,
+                data.profileImageUrl != null, () -> downloadProfile(activity, data));
+        addAction(content, activity, "Copy Username", R.drawable.ic_profile_username,
+                data.username != null && !data.username.isEmpty(), () -> copy(activity, "Username", data.username));
+        addAction(content, activity, "Follow Back", R.drawable.ic_profile_follow_back,
+                data.followBackView != null, () -> followBack(data.followBackView));
+
+        Dialog dialog = new Dialog(activity);
+        dialog.setContentView(content);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(roundBg(resolveSurface(activity), dp(activity, 24)));
+            dialog.getWindow().setDimAmount(0.32f);
+            dialog.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            android.view.WindowManager.LayoutParams lp = dialog.getWindow().getAttributes();
+            lp.width = Math.min(dp(activity, 380), activity.getResources().getDisplayMetrics().widthPixels - dp(activity, 32));
+            lp.gravity = Gravity.CENTER;
+            dialog.getWindow().setAttributes(lp);
+        }
+    }
+
+    private static void addAction(LinearLayout parent, Activity activity, String title, int icon,
+                                  boolean enabled, Runnable action) {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(activity, 8), dp(activity, 5), dp(activity, 8), dp(activity, 5));
+        row.setMinimumHeight(dp(activity, 58));
+        row.setEnabled(enabled);
+        row.setAlpha(enabled ? 1f : 0.42f);
+        row.setBackground(roundBg(resolveRowSurface(activity), dp(activity, 16)));
+
+        ImageView iv = new ImageView(activity);
+        iv.setImageResource(icon);
+        iv.setImageTintList(ColorStateList.valueOf(resolveAccent(activity)));
+        iv.setPadding(dp(activity, 9), dp(activity, 9), dp(activity, 9), dp(activity, 9));
+        row.addView(iv, new LinearLayout.LayoutParams(dp(activity, 44), dp(activity, 44)));
+
+        TextView tv = new TextView(activity);
+        tv.setText(title);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        tv.setTextColor(resolvePrimaryText(activity));
+        tv.setGravity(Gravity.CENTER_VERTICAL);
+        tv.setPadding(dp(activity, 12), 0, 0, 0);
+        row.addView(tv, new LinearLayout.LayoutParams(0, dp(activity, 58), 1f));
+
+        if (enabled) row.setOnClickListener(v -> action.run());
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, dp(activity, 62));
+        rowLp.bottomMargin = dp(activity, 6);
+        parent.addView(row, rowLp);
+    }
+
+    private static void copy(Activity activity, String label, String value) {
+        if (value == null || value.trim().isEmpty()) return;
+        ClipboardManager cm = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm != null) cm.setPrimaryClip(ClipData.newPlainText(label, value));
+    }
+
+    private static void followBack(View button) {
+        if (button == null || !button.isShown() || !button.isEnabled()) return;
+        try { button.performClick(); } catch (Throwable ignored) {}
+    }
+
+    private static void downloadProfile(Activity activity, ProfileData data) {
+        if (data.profileImageUrl == null || !FeatureFlags.enableProfileTools) return;
+        String username = data.username == null || data.username.trim().isEmpty() ? "profile" : data.username.trim();
+        IO.execute(() -> {
+            try {
+                FeedVideoDownloadHook.downloadAndSave(activity, data.profileImageUrl, username + "_profile.jpg", false, username);
+                ModuleLog.line("(InstaEclipse | ProfileTools): profile saved");
+            } catch (Throwable e) {
+                ModuleLog.line("(InstaEclipse | ProfileTools): profile download failed: " + e.getMessage());
+            }
+        });
+    }
+
+    private static ProfileData collectProfileData(View root) {
+        ProfileData data = new ProfileData();
+        List<View> views = flatten(root, 1100);
+        for (View v : views) {
+            if (!v.isShown()) continue;
+            String text = text(v);
+            String desc = normalized(description(v) + " " + resourceName(v));
+
+            if (data.followBackView == null && containsAny(normalized(description(v) + " " + resourceName(v) + " " + text(v)), "follow back", "follow_back")) {
+                data.followBackView = v.isClickable() ? v : clickableAncestor(v);
+            }
+
+            if (v instanceof ImageView) {
+                String url = extractUrl(v);
+                if (url != null) {
+                    int score = profileImageScore(v, desc, root);
+                    if (score > data.profileImageScore) {
+                        data.profileImageScore = score;
+                        data.profileImageUrl = url;
+                    }
+                }
+            }
+
+            if (text != null && !text.isEmpty()) {
+                String candidate = text.trim();
+                if (data.username == null && looksLikeUsername(candidate)) data.username = candidate;
+            }
+        }
+
+        Activity activity = activityFromContext(root.getContext());
+        if (activity != null) {
+            String title = String.valueOf(activity.getTitle()).trim();
+            if (data.username == null && looksLikeUsername(title)) data.username = title;
+        }
+        data.bio = findLikelyBio(views, data.username);
+        return data;
+    }
+
+    private static String findLikelyBio(List<View> views, String username) {
+        String best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (View v : views) {
+            if (!(v instanceof TextView) || !v.isShown()) continue;
+            String value = text(v);
+            if (value == null) continue;
+            value = value.trim();
+            if (value.isEmpty() || value.length() > 800) continue;
+            String lower = value.toLowerCase(Locale.US);
+            if (username != null && lower.equals(username.toLowerCase(Locale.US))) continue;
+            if (looksLikeCount(lower) || containsAny(lower, "follow", "message", "edit profile", "share profile", "posts", "followers", "following")) continue;
+            int score = value.contains("\n") ? 5 : 0;
+            if (value.length() >= 20) score += 3;
+            if (containsAny(lower, "http", ".com", "www", "@")) score += 2;
+            if (value.length() <= 140) score += 1;
+            if (score > bestScore) { bestScore = score; best = value; }
+        }
+        return best;
+    }
+
+    private static boolean looksLikeCount(String s) {
+        return s.matches("\\d+[kKmM]?\\s*(posts|followers|following)?") || s.matches("\\d+[.,]?\\d*[kKmM]?");
+    }
+
+    private static boolean looksLikeUsername(String s) {
+        return s != null && s.length() >= 2 && s.length() <= 30 && s.matches("[a-zA-Z0-9._]+") && !s.matches("\\d+");
+    }
+
+    private static String text(View v) {
+        return v instanceof TextView && ((TextView) v).getText() != null ? ((TextView) v).getText().toString() : null;
+    }
+
+    private static String description(View v) {
+        CharSequence d = v.getContentDescription();
+        return d == null ? "" : d.toString();
+    }
+
+    private static String resourceName(View v) {
+        try { return v.getResources().getResourceEntryName(v.getId()); } catch (Throwable ignored) { return ""; }
+    }
+
+    private static String normalized(String s) {
+        return s == null ? "" : s.toLowerCase(Locale.US).replace('-', '_');
+    }
+
+    private static boolean containsAny(String s, String... needles) {
+        if (s == null) return false;
+        for (String n : needles) if (s.contains(n)) return true;
+        return false;
+    }
+
+    private static List<View> flatten(View root, int max) {
+        List<View> out = new ArrayList<>();
+        ArrayDeque<View> q = new ArrayDeque<>();
+        q.add(root);
+        while (!q.isEmpty() && out.size() < max) {
+            View v = q.removeFirst();
+            out.add(v);
+            if (v instanceof ViewGroup) {
+                ViewGroup vg = (ViewGroup) v;
+                for (int i = 0; i < vg.getChildCount() && out.size() + q.size() < max; i++) q.addLast(vg.getChildAt(i));
+            }
+        }
+        return out;
+    }
+
+    private static View clickableAncestor(View view) {
+        View current = view;
+        for (int i = 0; i < 6 && current != null; i++) {
+            if (current.isClickable() && current.isEnabled()) return current;
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+        return null;
+    }
+
+    private static int profileImageScore(View v, String desc, View root) {
+        boolean explicit = containsAny(desc, "profile", "avatar", "profile_pic", "profile_photo");
+        boolean square = isSquare(v);
+        if (!explicit && !square) return Integer.MIN_VALUE;
+        int[] loc = new int[2];
+        try { v.getLocationOnScreen(loc); } catch (Throwable ignored) { return Integer.MIN_VALUE; }
+        int[] rootLoc = new int[2];
+        try { root.getLocationOnScreen(rootLoc); } catch (Throwable ignored) { return Integer.MIN_VALUE; }
+        int y = loc[1] - rootLoc[1];
+        int height = Math.max(root.getHeight(), 1);
+        if (!explicit && (y < 0 || y > height * 0.55f)) return Integer.MIN_VALUE;
+        int size = Math.min(v.getWidth(), v.getHeight());
+        if (!explicit && size < dp(v.getContext(), 48)) return Integer.MIN_VALUE;
+        int score = explicit ? 100 : 20;
+        if (square) score += 20;
+        score += Math.min(size / Math.max(dp(v.getContext(), 1), 1), 120) / 4;
+        if (y >= 0 && y < height * 0.35f) score += 15;
+        return score;
+    }
+
+    private static boolean isSquare(View v) {
+        return v.getWidth() > 0 && v.getHeight() > 0 && Math.abs(v.getWidth() - v.getHeight()) <= dp(v.getContext(), 10);
+    }
+
+    private static String extractUrl(View view) {
+        Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        String direct = inspectObject(view, visited, 0);
+        if (direct != null) return direct;
+        try {
+            Object tag = view.getTag();
+            if (tag instanceof Uri) return validUrl(tag.toString());
+            if (tag instanceof String) return validUrl((String) tag);
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private static String inspectObject(Object object, Set<Object> visited, int depth) {
+        if (object == null || depth > 2 || visited.contains(object)) return null;
+        visited.add(object);
+        if (object instanceof String) return validUrl((String) object);
+        if (object instanceof Uri) return validUrl(object.toString());
+        Class<?> cls = object.getClass();
+        for (Class<?> c = cls; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                try {
+                    if (Modifier.isStatic(f.getModifiers())) continue;
+                    String n = f.getName().toLowerCase(Locale.US);
+                    if (!(n.contains("url") || n.contains("uri") || n.contains("image") || n.contains("avatar") || n.equals("a0e") || n.equals("a0d") || n.equals("a0c"))) continue;
+                    f.setAccessible(true);
+                    String u = inspectValue(f.get(object), visited, depth);
+                    if (u != null) return u;
+                } catch (Throwable ignored) {}
+            }
+        }
+        for (String name : new String[]{"getUrl", "getImageUrl", "getUri", "getImageUri"}) {
+            try {
+                Method m = cls.getMethod(name);
+                if (m.getParameterCount() == 0) {
+                    String u = inspectValue(m.invoke(object), visited, depth);
+                    if (u != null) return u;
+                }
+            } catch (Throwable ignored) {}
+        }
+        return null;
+    }
+
+    private static String inspectValue(Object value, Set<Object> visited, int depth) {
+        if (value instanceof String) return validUrl((String) value);
+        if (value instanceof Uri) return validUrl(value.toString());
+        return inspectObject(value, visited, depth + 1);
+    }
+
+    private static String validUrl(String s) {
+        if (s == null || !(s.startsWith("http://") || s.startsWith("https://"))) return null;
+        return isInstagramImageUrl(s) ? s : null;
+    }
+
+    private static boolean isInstagramImageUrl(String s) {
+        try {
+            String host = new URL(s).getHost().toLowerCase(Locale.US);
+            return host.equals("instagram.com") || host.endsWith(".instagram.com")
+                    || host.equals("cdninstagram.com") || host.endsWith(".cdninstagram.com")
+                    || host.equals("fbcdn.net") || host.endsWith(".fbcdn.net")
+                    || host.equals("fbsbx.com") || host.endsWith(".fbsbx.com");
+        } catch (Throwable ignored) { return false; }
+    }
+
+    private static Activity activityFromContext(Context c) {
+        Context current = c;
+        while (current instanceof ContextWrapper) {
+            if (current instanceof Activity) return (Activity) current;
+            current = ((ContextWrapper) current).getBaseContext();
+        }
+        return null;
+    }
+
+    private static int resolvePrimaryText(Context c) {
+        try {
+            TypedValue tv = new TypedValue();
+            if (c.getTheme().resolveAttribute(android.R.attr.textColorPrimary, tv, true)) {
+                return tv.resourceId != 0 ? c.getResources().getColor(tv.resourceId, c.getTheme()) : tv.data;
+            }
+        } catch (Throwable ignored) {}
+        return Color.WHITE;
+    }
+
+    private static int resolveSurface(Context c) {
+        try {
+            TypedValue tv = new TypedValue();
+            if (c.getTheme().resolveAttribute(android.R.attr.colorBackground, tv, true)) {
+                return tv.resourceId != 0 ? c.getResources().getColor(tv.resourceId, c.getTheme()) : tv.data;
+            }
+        } catch (Throwable ignored) {}
+        return 0xFF151515;
+    }
+
+    private static int resolveRowSurface(Context c) {
+        int bg = resolveSurface(c);
+        return Color.argb(220, Color.red(bg), Color.green(bg), Color.blue(bg));
+    }
+
+    private static int resolveAccent(Context c) {
+        try {
+            TypedValue tv = new TypedValue();
+            if (c.getTheme().resolveAttribute(android.R.attr.colorAccent, tv, true)) {
+                return tv.resourceId != 0 ? c.getResources().getColor(tv.resourceId, c.getTheme()) : tv.data;
+            }
+        } catch (Throwable ignored) {}
+        return 0xFF4EA1FF;
+    }
+
+    private static GradientDrawable roundBg(int color, int radius) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radius);
+        return d;
+    }
+
+    private static int dp(Context c, int v) {
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, c.getResources().getDisplayMetrics());
+    }
+
+    private static final class InjectionTarget {
+        final View root;
+        final ViewGroup parent;
+        final View anchor;
+        final int indexAfterAnchor;
+        InjectionTarget(View root, ViewGroup parent, View anchor, int indexAfterAnchor) {
+            this.root = root;
+            this.parent = parent;
+            this.anchor = anchor;
+            this.indexAfterAnchor = indexAfterAnchor;
+        }
+    }
+
+    private static final class ProfileData {
+        String username;
+        String bio;
+        String profileImageUrl;
+        int profileImageScore = Integer.MIN_VALUE;
+        View followBackView;
+    }
+}

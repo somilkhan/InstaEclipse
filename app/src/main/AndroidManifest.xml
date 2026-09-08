@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <queries>
+        <package android:name="com.instagram.android" />
+        <package android:name="com.instagold.android" />
+        <package android:name="com.instaflux.app" />
+        <package android:name="com.myinsta.android" />
+        <package android:name="cc.honista.app" />
+        <package android:name="com.instaprime.android" />
+        <package android:name="com.instafel.android" />
+        <package android:name="com.instadm.android" />
+        <package android:name="com.dfistagram.android" />
+        <package android:name="com.Instander.android" />
+        <package android:name="com.aero.instagram" />
+        <package android:name="com.instapro.android" />
+        <package android:name="com.instaflow.android" />
+        <package android:name="com.instagram1.android" />
+        <package android:name="com.instagram2.android" />
+        <package android:name="com.instagramclone.android" />
+        <package android:name="com.instaclone.android" />
+    </queries>
+
+    <permission
+        android:name="ps.reso.instaeclipse.permission.RESTART_INSTAGRAM"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="ps.reso.instaeclipse.permission.RESTART_INSTAGRAM" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.InstaEclipse"
+        tools:targetApi="31">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".mods.devops.config.JsonImportActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".mods.devops.config.JsonExportActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".mods.location.LocationPickerActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".ui.theme.ThemeCustomizerActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
+        <service android:name=".mods.media.DownloadSaveService" android:exported="true" android:foregroundServiceType="dataSync" tools:ignore="ExportedService" />
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposeddescription" android:value="Enhance your Instagram experience" />
+        <meta-data android:name="xposedminversion" android:value="82" />
+        <meta-data android:name="xposedsharedprefs" android:value="true" />
+        <meta-data android:name="xposedscope" android:resource="@array/target_app" />
+    </application>
+
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+</manifest>
