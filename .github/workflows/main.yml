@@ -71,12 +71,19 @@ jobs:
         run: |
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
+          AAPT2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump xmltree "$APK" AndroidManifest.xml > /tmp/manifest.txt
+          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > /tmp/manifest.txt
           grep -q 'ps.reso.instaeclipse.MainActivity' /tmp/manifest.txt
           ! unzip -l "$APK" | grep -q 'assets/web/index.html'
           ! unzip -l "$APK" | grep -q 'assets/web/'
-          echo "Native Android UI verified; Web Manager runtime is not packaged"
+          PACKAGE=$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p")
+          VERSION=$("$AAPT" dump badging "$APK" | sed -n "s/.*versionName='\\([^']*\\)'.*/\\1/p")
+          EXPECTED_VERSION=$(sed -n "s/^[[:space:]]*versionName[[:space:]]*['\"]\\([^'\"]*\\)['\"].*/\\1/p" app/build.gradle | head -n1)
+          test "$PACKAGE" = "ps.reso.instaeclipse"
+          test "$VERSION" = "$EXPECTED_VERSION"
+          echo "Native Android UI verified; package=$PACKAGE version=$VERSION; Web Manager runtime is not packaged"
 
       - name: Upload Core APK
         uses: actions/upload-artifact@v4
