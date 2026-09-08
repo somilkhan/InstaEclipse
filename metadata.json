@@ -1,0 +1,6 @@
+{
+  "name": "InstaEclipse",
+  "description": "Companion manager and feature customizer for InstaEclipse — Ghost Mode, Clean Feed, Downloader, Theme Customizer, GPS Spoofing, and Dev Options.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
