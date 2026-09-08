@@ -38,11 +38,44 @@ android {
 
     buildTypes {
         debug {
-            minifyEnabled false
+            if (project.hasProperty('coreReleaseStoreFile')) {
+                signingConfig signingConfigs.release
+            }
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            if (project.hasProperty('coreReleaseStoreFile')) {
+                signingConfig signingConfigs.release
+            }
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}
+
+dependencies {
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.constraintlayout
+    implementation libs.gson
+    implementation libs.dexkit
+    implementation "androidx.documentfile:documentfile:1.1.0"
+    implementation libs.osmdroid
+    implementation libs.fileprefs
+
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core.v361
+
+    compileOnly files('libs/api-82.jar')
 }
