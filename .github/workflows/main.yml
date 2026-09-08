@@ -6,7 +6,6 @@ on:
       - main
       - 0.4
       - 'stability/latest-instagram'
-      - 'fix/android-redesign-webview'
   pull_request:
     branches:
       - main
@@ -37,24 +36,6 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-
-      - name: Build Web Manager bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --no-audit --no-fund
-          npm run build
-          test -s dist/index.html
-          rm -rf app/src/main/assets/web
-          mkdir -p app/src/main/assets/web
-          cp -R dist/. app/src/main/assets/web/
-          test -s app/src/main/assets/web/index.html
 
       - name: Set up Android SDK tooling
         uses: android-actions/setup-android@v3
@@ -104,13 +85,14 @@ jobs:
             -PcoreReleaseKeyAlias="$KEY_ALIAS" \
             -PcoreReleaseKeyPassword="$KEY_PASSWORD"
 
-      - name: Verify Core APK exists
+      - name: Verify native Android APK exists
         shell: bash
         run: |
           set -euo pipefail
           test -s app/build/outputs/apk/debug/app-debug.apk
-          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'assets/web/index.html'
-          echo "Embedded Web Manager verified inside APK"
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'ps/reso/instaeclipse/MainActivity'
+          ! unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'assets/web/index.html'
+          echo "Native Android UI verified; no Web Manager runtime bundle is embedded"
 
       - name: Upload Core APK
         uses: actions/upload-artifact@v4
