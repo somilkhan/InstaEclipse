@@ -6,6 +6,7 @@ on:
       - main
       - 0.4
       - 'stability/latest-instagram'
+      - 'fix/android-redesign-webview'
   pull_request:
     branches:
       - main
@@ -47,7 +48,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
+          npm install --no-audit --no-fund
           npm run build
           test -s dist/index.html
           rm -rf app/src/main/assets/web
