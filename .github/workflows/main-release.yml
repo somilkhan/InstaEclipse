@@ -6,12 +6,21 @@ on:
       - main
     paths:
       - "app/**"
+      - "src/**"
+      - "assets/**"
+      - "index.html"
+      - "package.json"
+      - "bun.lock"
+      - "vite.config.*"
+      - "tsconfig*.json"
+      - "postcss.config.*"
       - "gradle/**"
       - "build.gradle"
       - "settings.gradle"
       - "gradle.properties"
       - "gradlew"
       - "gradlew.bat"
+      - "version.json"
   workflow_dispatch:
 
 permissions:
@@ -23,9 +32,9 @@ concurrency:
 
 jobs:
   release:
-    name: Build, verify and publish native Android APK
+    name: Build, verify and publish Web Manager Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,7 +54,6 @@ jobs:
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
       - name: Validate update metadata
-        if: steps.version.outputs.version != ''
         env:
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
@@ -53,7 +61,7 @@ jobs:
           set -euo pipefail
           test -f version.json
           python3 - <<'PY'
-          import json, os, sys
+          import json, os
           version = os.environ["VERSION"]
           with open("version.json", encoding="utf-8") as f:
               data = json.load(f)
@@ -78,6 +86,27 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Set up Bun
+        if: steps.existing.outputs.exists != 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build Web Manager
+        if: steps.existing.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun run lint
+          bun run build
+          test -s dist/index.html
+          test -n "$(find dist/assets -type f -print -quit)"
+          rm -rf app/src/main/assets/web
+          mkdir -p app/src/main/assets/web
+          cp -R dist/. app/src/main/assets/web/
+          test -s app/src/main/assets/web/index.html
+
       - name: Set up JDK 17
         if: steps.existing.outputs.exists != 'true'
         uses: actions/setup-java@v5
@@ -100,7 +129,7 @@ jobs:
         if: steps.existing.outputs.exists != 'true'
         run: chmod +x ./gradlew
 
-      - name: Run tests and lint
+      - name: Run Android tests and lint
         if: steps.existing.outputs.exists != 'true'
         shell: bash
         run: |
@@ -134,7 +163,7 @@ jobs:
             -PcoreReleaseKeyAlias="$KEY_ALIAS" \
             -PcoreReleaseKeyPassword="$KEY_PASSWORD"
 
-      - name: Verify and checksum APK
+      - name: Verify APK contains the Web Manager
         if: steps.existing.outputs.exists != 'true'
         shell: bash
         run: |
@@ -143,8 +172,8 @@ jobs:
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           test -s "$APK"
-          ! unzip -l "$APK" | grep -q 'assets/web/index.html'
-          ! unzip -l "$APK" | grep -q 'assets/web/'
+          unzip -l "$APK" | grep -q 'assets/web/index.html'
+          unzip -l "$APK" | grep -q 'assets/web/assets/'
           "$APKSIGNER" verify --verbose "$APK"
           PACKAGE=$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
           VERSION=$("$AAPT" dump badging "$APK" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
@@ -166,4 +195,4 @@ jobs:
             "dist/instaeclipse-${VERSION}.apk" dist/SHA256SUMS.txt \
             --target "$GITHUB_SHA" \
             --title "InstaEclipse Android ${VERSION}" \
-            --notes "Signed InstaEclipse Android APK. Native Android UI and runtime are shipped together; no Web Manager/WebView UI is required."
+            --notes "Signed InstaEclipse Android APK with the authoritative React/Vite Web Manager bundled as the app UI, plus the native Android runtime bridge and Xposed core."
