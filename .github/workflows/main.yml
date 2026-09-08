@@ -60,30 +60,11 @@ jobs:
           set -euo pipefail
           ./gradlew :app:testDebugUnitTest :app:lintDebug --no-daemon --stacktrace
 
-      - name: Prepare release signing key
-        env:
-          KEYSTORE_B64: ${{ secrets.INSTAECLIPSE_KEYSTORE_BASE64 }}
+      - name: Build unsigned Debug APK
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_B64" || { echo "INSTAECLIPSE_KEYSTORE_BASE64 is required"; exit 1; }
-          echo "$KEYSTORE_B64" | base64 --decode > /tmp/instaeclipse-release.jks
-          test -s /tmp/instaeclipse-release.jks
-
-      - name: Build signed Debug APK
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.INSTAECLIPSE_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.INSTAECLIPSE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.INSTAECLIPSE_KEY_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo "Core signing secrets are required"; exit 1; }
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace \
-            -PcoreReleaseStoreFile=/tmp/instaeclipse-release.jks \
-            -PcoreReleaseStorePassword="$KEYSTORE_PASSWORD" \
-            -PcoreReleaseKeyAlias="$KEY_ALIAS" \
-            -PcoreReleaseKeyPassword="$KEY_PASSWORD"
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Verify native Android APK and reject Web Manager
         shell: bash
