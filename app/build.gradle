@@ -1,0 +1,81 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'ps.reso.instaeclipse'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "ps.reso.instaeclipse"
+        minSdkVersion 28
+        targetSdk 35
+        versionCode 23
+        versionName '0.6.7'
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    signingConfigs {
+        release {
+            def storeFilePath = project.findProperty('coreReleaseStoreFile')
+            if (storeFilePath) {
+                storeFile file(storeFilePath)
+                storePassword project.findProperty('coreReleaseStorePassword')
+                keyAlias project.findProperty('coreReleaseKeyAlias')
+                keyPassword project.findProperty('coreReleaseKeyPassword')
+            }
+        }
+    }
+
+    lint {
+        disable 'MissingTranslation'
+    }
+
+    buildTypes {
+        debug {
+            if (project.hasProperty('coreReleaseStoreFile')) {
+                signingConfig signingConfigs.release
+            }
+        }
+        release {
+            minifyEnabled false
+            if (project.hasProperty('coreReleaseStoreFile')) {
+                signingConfig signingConfigs.release
+            }
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}
+
+dependencies {
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.constraintlayout
+    implementation libs.gson
+    implementation libs.dexkit
+    implementation "androidx.documentfile:documentfile:1.1.0"
+    implementation libs.osmdroid
+    implementation libs.fileprefs
+
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core.v361
+
+    compileOnly files('libs/api-82.jar')
+}

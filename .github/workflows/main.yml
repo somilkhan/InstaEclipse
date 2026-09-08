@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v4
@@ -60,13 +60,35 @@ jobs:
       - name: Run Android lint
         run: ./gradlew lintDebug --stacktrace
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Prepare release signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.INSTAECLIPSE_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" || { echo "INSTAECLIPSE_KEYSTORE_BASE64 is required"; exit 1; }
+          echo "$KEYSTORE_B64" | base64 --decode > /tmp/instaeclipse-release.jks
+          test -s /tmp/instaeclipse-release.jks
 
-      - name: Verify APK exists
+      - name: Build signed Debug APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.INSTAECLIPSE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.INSTAECLIPSE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.INSTAECLIPSE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo "Core signing secrets are required"; exit 1; }
+          ./gradlew :app:assembleDebug --stacktrace \
+            -PcoreReleaseStoreFile=/tmp/instaeclipse-release.jks \
+            -PcoreReleaseStorePassword="$KEYSTORE_PASSWORD" \
+            -PcoreReleaseKeyAlias="$KEY_ALIAS" \
+            -PcoreReleaseKeyPassword="$KEY_PASSWORD"
+
+      - name: Verify Core APK exists
         run: test -s app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload APK
+      - name: Upload Core APK
         uses: actions/upload-artifact@v4
         with:
           name: instaeclipse-debug-${{ github.sha }}
