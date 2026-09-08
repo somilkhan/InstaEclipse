@@ -1,11 +1,12 @@
 import React from 'react';
-import { Sparkles, X, CheckCircle2, ArrowUpCircle, RefreshCw, Radio, Terminal, Send, ShieldCheck } from 'lucide-react';
+import { Sparkles, X, CheckCircle2, ArrowUpCircle, RefreshCw, Radio, Terminal, Send, ShieldCheck, Download, Smartphone } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const UpdateModal: React.FC = () => {
   const {
     openUpdateModal,
     setOpenUpdateModal,
+    setOpenApkInstallerModal,
     versionInfo,
     isCheckingUpdates,
     checkForUpdates,
@@ -130,28 +131,59 @@ export const UpdateModal: React.FC = () => {
               <span>Install & Apply Update v{versionInfo.latestVersion}</span>
             </button>
           ) : (
-            <div className="flex items-center justify-center gap-2 py-2 text-xs font-semibold text-zinc-400 bg-white/[0.02] rounded-xl border border-white/5">
-              <ShieldCheck className="w-4 h-4 text-white" />
-              <span>Synchronized & Stable on {versionInfo.channel}</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-2 py-2 text-xs font-semibold text-zinc-400 bg-white/[0.02] rounded-xl border border-white/5">
+                <ShieldCheck className="w-4 h-4 text-white" />
+                <span>Synchronized & Stable on {versionInfo.channel}</span>
+              </div>
+              <button
+                id="open-apk-downloader-btn"
+                onClick={() => {
+                  setOpenUpdateModal(false);
+                  setOpenApkInstallerModal(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 active:scale-[0.99] font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-white/10"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download & Install v2.0 APK ({versionInfo.apkFileSize || '18.4 MB'})</span>
+              </button>
             </div>
           )}
         </div>
 
-        {/* Telegram Direct Support Pill */}
-        <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/8 flex items-center justify-between gap-3 text-xs">
-          <div className="min-w-0">
-            <p className="font-semibold text-white truncate">Questions or Bug Reports?</p>
-            <p className="text-[11px] text-zinc-400 truncate">Contact maintainer Zehen on Telegram</p>
+        {/* Telegram Support and Community Pill */}
+        <div className="space-y-2">
+          <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3 text-xs">
+            <div className="min-w-0">
+              <p className="font-semibold text-white truncate">Community Telegram Chat</p>
+              <p className="text-[11px] text-zinc-400 truncate">Join @InstaEclipsechat for news & help</p>
+            </div>
+            <a
+              href="https://t.me/InstaEclipsechat"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 border border-white/15 text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0 shadow-sm"
+            >
+              <Send className="w-3 h-3" />
+              <span>Join Chat</span>
+            </a>
           </div>
-          <a
-            href="https://t.me/Zehen0i"
-            target="_blank"
-            rel="noreferrer"
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-semibold text-[11px] flex items-center gap-1.5 transition-colors shrink-0"
-          >
-            <Send className="w-3 h-3" />
-            <span>@Zehen0i</span>
-          </a>
+
+          <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/8 flex items-center justify-between gap-3 text-xs">
+            <div className="min-w-0">
+              <p className="font-semibold text-white truncate">Maintainer Support</p>
+              <p className="text-[11px] text-zinc-400 truncate">Direct questions to @Zehen0i</p>
+            </div>
+            <a
+              href="https://t.me/Zehen0i"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-semibold text-[11px] flex items-center gap-1.5 transition-colors shrink-0"
+            >
+              <Send className="w-3 h-3" />
+              <span>@Zehen0i</span>
+            </a>
+          </div>
         </div>
       </div>
     </div>

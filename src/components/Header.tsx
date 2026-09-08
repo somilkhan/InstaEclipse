@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Info, RefreshCw, Sparkles, ShieldCheck, ArrowUpCircle } from 'lucide-react';
+import { ArrowLeft, Info, RefreshCw, Sparkles, ShieldCheck, ArrowUpCircle, Download } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { FeatureSubmenu } from '../types';
 
@@ -11,7 +11,15 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack }) => {
-  const { setOpenAboutDialog, setOpenUpdateModal, restartInstagram, isRestarting, activePackage, versionInfo } = useApp();
+  const {
+    setOpenAboutDialog,
+    setOpenUpdateModal,
+    setOpenApkInstallerModal,
+    restartInstagram,
+    isRestarting,
+    activePackage,
+    versionInfo,
+  } = useApp();
 
   return (
     <header className="sticky top-0 z-30 bg-zinc-950/75 backdrop-blur-2xl border-b border-white/[0.08] px-4 py-3">
@@ -27,13 +35,8 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack }) => {
             </button>
           ) : (
             <div className="relative flex-shrink-0">
-              <div className="w-8 h-8 rounded-xl bg-white/10 border border-white/20 overflow-hidden shadow-[0_0_15px_rgba(255,255,255,0.15)] flex items-center justify-center">
-                <img
-                  src="/telegram_logo.jpg"
-                  alt="InstaEclipse"
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-8 h-8 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-white rounded-full ring-2 ring-zinc-950 shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
             </div>
@@ -81,6 +84,16 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack }) => {
               <ArrowUpCircle className="w-4 h-4" />
             </button>
           )}
+
+          {/* In-App APK Downloader Action */}
+          <button
+            id="header-download-apk-btn"
+            onClick={() => setOpenApkInstallerModal(true)}
+            title="Download & Install InstaEclipse v2.0 APK"
+            className="p-2 rounded-xl text-zinc-300 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+          </button>
 
           {/* Restart Instagram Action */}
           <button

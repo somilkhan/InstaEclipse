@@ -4,8 +4,8 @@
   <p>A modern React companion manager and preference controller for InstaEclipse.</p>
 
   <p>
-    <a href="https://github.com/somilkhan/InstaEclipse"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-somilkhan%2FInstaEclipse-181717?style=for-the-badge&logo=github"/></a>
-    <a href="https://t.me/InstaEclipse"><img alt="Telegram" src="https://img.shields.io/badge/Telegram-Channel-26A5E4?style=for-the-badge&logo=telegram"/></a>
+    <a href="https://t.me/InstaEclipsechat"><img alt="Telegram Chat" src="https://img.shields.io/badge/Telegram-Chat%20@InstaEclipsechat-26A5E4?style=for-the-badge&logo=telegram"/></a>
+    <a href="https://t.me/instaeclipse_channel"><img alt="Telegram Channel" src="https://img.shields.io/badge/Telegram-Channel-26A5E4?style=for-the-badge&logo=telegram"/></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-GPLv3-blue?style=for-the-badge"/></a>
   </p>
 </div>
@@ -14,7 +14,16 @@
 
 ## Overview
 
-**InstaEclipse Web Manager** is a full-featured web-based interface rewritten from the original Android application (`somilkhan/InstaEclipse`). It provides real-time preference management, configuration import/export, interactive OpenStreetMap GPS spoofing, diagnostic log inspection, and an advanced Theme Customizer with live Instagram mockup preview.
+**InstaEclipse Web Manager v2.0** is a full-featured companion interface and in-app APK installer for InstaEclipse. All feature branches and patches have been consolidated into the unified v2 release. It provides in-app direct APK downloads with SHA-256 verification, real-time preference management, configuration import/export, interactive OpenStreetMap GPS spoofing, diagnostic log inspection, and an advanced Theme Customizer with live Instagram mockup preview.
+
+---
+
+## 📦 Releases & Downloads
+
+- **Latest APK**: `InstaEclipse_v2.0.0_release.apk` (Build 20)
+- **Target Compatibility**: `com.instagram.android` 443.0.0.48.82+ (ARM64-v8a / ARMv7a)
+- **Official Telegram Chat**: [@InstaEclipsechat](https://t.me/InstaEclipsechat) for direct downloads and community support.
+- **In-App Installation**: Tap "Download & Install APK" inside the app for direct download and package installer verification.
 
 ---
 

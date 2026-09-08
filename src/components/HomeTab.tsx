@@ -33,6 +33,7 @@ export const HomeTab: React.FC = () => {
     versionInfo,
     setOpenUpdateModal,
     setOpenAboutDialog,
+    setOpenApkInstallerModal,
   } = useApp();
 
   const [showPackageModal, setShowPackageModal] = useState(false);
@@ -50,13 +51,8 @@ export const HomeTab: React.FC = () => {
   };
 
   const handleDownloadApk = () => {
-    addLog('INFO', 'Opening Instagram APK repository download link...');
-    showToast('Redirecting to Instagram APK downloads...');
-    window.open(
-      'https://www.apkmirror.com/uploads/?appcategory=instagram-instagram',
-      '_blank',
-      'noopener,noreferrer'
-    );
+    addLog('INFO', 'Opening InstaEclipse v2.0.0 in-app APK installer...');
+    setOpenApkInstallerModal(true);
   };
 
   const handleCopyTelegram = () => {
@@ -68,6 +64,50 @@ export const HomeTab: React.FC = () => {
 
   return (
     <div className="space-y-4 pb-28 max-w-3xl mx-auto">
+      {/* v2.0.0 Consolidated Release Announcement Banner */}
+      <div className="relative overflow-hidden rounded-3xl glass-card p-5 border border-white/15 bg-gradient-to-r from-white/[0.08] via-white/[0.04] to-transparent shadow-2xl space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2 py-0.5 rounded-full bg-white text-zinc-950 font-black text-[10px] tracking-wider uppercase shadow-sm">
+                v2.0 Released
+              </span>
+              <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-1.5">
+                <span>InstaEclipse v2.0.0 (Build 20)</span>
+                <Sparkles className="w-4 h-4 text-white" />
+              </h3>
+            </div>
+            <p className="text-xs text-zinc-300 leading-relaxed max-w-xl">
+              All feature branches & patches have been consolidated into main: Ghost Mode v2, Media Downloader, DexKit 2.0.4 resolvers for Instagram 443.x, and GPS spoofing.
+            </p>
+          </div>
+          <span className="hidden sm:inline-flex text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/10 text-zinc-300 border border-white/10 shrink-0">
+            Stable
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap pt-1">
+          <button
+            id="banner-download-v2-apk-btn"
+            onClick={() => setOpenApkInstallerModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 active:scale-[0.98] text-xs font-bold shadow-lg shadow-white/10 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Download & Install APK</span>
+          </button>
+          <a
+            id="banner-telegram-btn"
+            href="https://t.me/InstaEclipsechat"
+            target="_blank"
+            rel="noreferrer"
+            className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium text-xs flex items-center gap-1.5 border border-white/15 transition-all cursor-pointer"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Telegram @InstaEclipsechat</span>
+          </a>
+        </div>
+      </div>
+
       {/* Target Instagram Status Card - Monochrome Glass */}
       <div className="relative overflow-hidden rounded-3xl glass-card p-5 border border-white/12 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
@@ -120,10 +160,10 @@ export const HomeTab: React.FC = () => {
           <button
             id="download-apk-btn"
             onClick={handleDownloadApk}
-            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl glass-button text-white text-xs font-medium cursor-pointer"
+            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-semibold cursor-pointer transition-all active:scale-[0.98]"
           >
             <Download className="w-3.5 h-3.5" />
-            Download APK
+            Download v2.0 APK
           </button>
         </div>
 
@@ -222,13 +262,42 @@ export const HomeTab: React.FC = () => {
           </div>
 
           <a
-            href={ORIGINAL_FOUNDER.githubUrl || '#'}
+            href={ORIGINAL_FOUNDER.telegramUrl || 'https://t.me/InstaEclipsechat'}
             target="_blank"
             rel="noreferrer"
-            className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-zinc-300 hover:text-white flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
+            className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-zinc-300 hover:text-white flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer"
+            title="Telegram Chat"
           >
-            <Code2 className="w-3 h-3" />
-            <span>GitHub</span>
+            <Send className="w-3 h-3 text-white" />
+            <span>@InstaEclipsechat</span>
+          </a>
+        </div>
+
+        {/* Official Community Telegram Chat */}
+        <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-3.5 flex items-center justify-between gap-3 hover:border-white/20 transition-all">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0">
+              <Send className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-white text-xs truncate">Telegram Chat</p>
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-white text-zinc-950">
+                  Community
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-400 truncate">Join @InstaEclipsechat for discussions & support</p>
+            </div>
+          </div>
+
+          <a
+            href="https://t.me/InstaEclipsechat"
+            target="_blank"
+            rel="noreferrer"
+            className="px-3 py-1.5 rounded-xl bg-white text-zinc-950 font-bold text-[11px] hover:bg-zinc-200 transition-colors flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
+          >
+            <Send className="w-3 h-3" />
+            <span>Join Chat</span>
           </a>
         </div>
       </div>
@@ -369,17 +438,6 @@ export const HomeTab: React.FC = () => {
                       title="Telegram"
                     >
                       <Send className="w-3.5 h-3.5" />
-                    </a>
-                  )}
-                  {c.githubUrl && (
-                    <a
-                      href={c.githubUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-1 hover:text-white transition-colors"
-                      title="GitHub"
-                    >
-                      <Code2 className="w-3.5 h-3.5" />
                     </a>
                   )}
                   {c.linkedinUrl && (

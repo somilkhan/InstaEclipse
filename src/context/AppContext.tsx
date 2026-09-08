@@ -31,6 +31,8 @@ interface AppContextType {
   setOpenAboutDialog: (open: boolean) => void;
   openUpdateModal: boolean;
   setOpenUpdateModal: (open: boolean) => void;
+  openApkInstallerModal: boolean;
+  setOpenApkInstallerModal: (open: boolean) => void;
   versionInfo: AppVersionInfo;
   isCheckingUpdates: boolean;
   checkForUpdates: () => Promise<void>;
@@ -43,22 +45,27 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 const STORAGE_KEY = 'instaeclipse_cache';
-const VERSION_STORAGE_KEY = 'instaeclipse_version_cache';
+const VERSION_STORAGE_KEY = 'instaeclipse_version_cache_v2';
 
 const DEFAULT_VERSION: AppVersionInfo = {
-  version: '0.7.0',
-  buildNumber: 18,
+  version: '2.0.0',
+  buildNumber: 20,
   releaseDate: '2026-09-08',
   channel: 'Stable',
-  isLatest: false,
-  latestVersion: '0.7.2',
+  isLatest: true,
+  latestVersion: '2.0.0',
+  apkFileName: 'InstaEclipse_v2.0.0_release.apk',
+  apkFileSize: '18.4 MB',
+  sha256Hash: 'e2b80a49f15c7e112d3b4a8e990cb78f24a67d9e0349887b1c8340d2fb91aa72',
+  apkDownloadUrl: 'https://t.me/InstaEclipsechat',
   changelog: [
-    '✨ Monochrome x GlassUI: Aesthetic redesign with obsidian glassmorphism & silver accents',
-    '👑 Project Continuation: Zehen (@Zehen0i) credited as active maintainer and continuation lead',
-    '🧭 Floating Navpill: Fluid animated glass navigation pill with layout transitions',
-    '🔄 Sync & Multi-tab Engine: Synchronized preferences across tabs with instant localStorage sync',
-    '⚡ Enhanced Hook Dispatcher: DexKit 2.0.4 bytecode caching & fast module restart simulation',
-    '🛡️ Ghost & Privacy: Enhanced screenshot allowance & view-once permanence stability',
+    '🚀 InstaEclipse v2.0.0 Major Release: Consolidated all feature branches & patches into main',
+    '📥 In-App APK Downloader & Installer: 1-tap direct APK download with SHA-256 integrity verification',
+    '🛡️ Ghost & Privacy Suite v2: Unlimited view-once replays, stealth story viewer, screenshot prevention bypass',
+    '⚡ Instagram 443.0.0.48.82 Compatibility: Dynamic DexKit 2.0.4 hooks for obfuscated video, captions & quality gates',
+    '🎨 Aesthetic GlassUI Theme Customizer: Live Instagram mockup with custom hex palette slots & presets',
+    '🛰️ Real-time GPS Location Spoofing: Interactive OpenStreetMap coordinate injection',
+    '💬 Official Community: Telegram chat integration @InstaEclipsechat',
   ],
 };
 
@@ -67,7 +74,7 @@ const INITIAL_LOGS: LogEntry[] = [
     id: '1',
     timestamp: new Date(Date.now() - 1000 * 60 * 12).toLocaleTimeString(),
     tag: 'INFO',
-    message: 'InstaEclipse Companion initialized (v0.7.0 - Revival by Zehen)',
+    message: 'InstaEclipse v2.0.0 initialized (All branch patches merged • Build 20)',
     source: 'InstaEclipse',
   },
   {
@@ -141,6 +148,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [openLocationPicker, setOpenLocationPicker] = useState<boolean>(false);
   const [openAboutDialog, setOpenAboutDialog] = useState<boolean>(false);
   const [openUpdateModal, setOpenUpdateModal] = useState<boolean>(false);
+  const [openApkInstallerModal, setOpenApkInstallerModal] = useState<boolean>(false);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState<boolean>(false);
   const [isRestarting, setIsRestarting] = useState<boolean>(false);
 
@@ -261,28 +269,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await new Promise(r => setTimeout(r, 900));
     setIsCheckingUpdates(false);
     
-    // If user is already on latest, let them know or offer beta
-    if (versionInfo.version === '0.7.2') {
+    if (versionInfo.version === '2.0.0') {
       setVersionInfo(prev => ({ ...prev, isLatest: true }));
-      showToast('You are on the latest version!');
-      addLog('INFO', `Release check: InstaEclipse v${versionInfo.version} is up to date.`);
+      showToast('You are on the latest InstaEclipse v2.0.0 release!');
+      addLog('INFO', `Release check: InstaEclipse v${versionInfo.version} is up to date (Build 20).`);
     } else {
-      setVersionInfo(prev => ({ ...prev, isLatest: false, latestVersion: '0.7.2' }));
-      showToast('New update available: v0.7.2 (Monochrome Glass)');
-      addLog('INFO', 'New update found: InstaEclipse v0.7.2 with enhanced Monochrome Glass UI');
+      setVersionInfo(prev => ({ ...prev, isLatest: false, latestVersion: '2.0.0' }));
+      showToast('New update available: v2.0.0 (Consolidated Release)');
+      addLog('INFO', 'New update found: InstaEclipse v2.0.0 with all merged branch patches');
     }
   };
 
   const applyUpdate = () => {
-    const nextVer = versionInfo.latestVersion || '0.7.2';
+    const nextVer = versionInfo.latestVersion || '2.0.0';
     setVersionInfo(prev => ({
       ...prev,
       version: nextVer,
-      buildNumber: prev.buildNumber + 1,
+      buildNumber: 20,
       releaseDate: new Date().toISOString().split('T')[0],
       isLatest: true,
     }));
-    addLog('INFO', `InstaEclipse updated to version v${nextVer} (Build ${versionInfo.buildNumber + 1})`);
+    addLog('INFO', `InstaEclipse updated to version v${nextVer} (Build 20)`);
     showToast(`Successfully updated to InstaEclipse v${nextVer}!`);
   };
 
@@ -372,6 +379,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setOpenAboutDialog,
         openUpdateModal,
         setOpenUpdateModal,
+        openApkInstallerModal,
+        setOpenApkInstallerModal,
         versionInfo,
         isCheckingUpdates,
         checkForUpdates,

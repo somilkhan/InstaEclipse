@@ -18,29 +18,29 @@ export const ORIGINAL_FOUNDER: ContributorItem = {
   badge: 'Original Author',
   bio: 'Creator of the original InstaEclipse module architecture, DexKit hook infrastructure, and core codebase.',
   avatarInitials: 'SK',
-  githubUrl: 'https://github.com/somilkhan',
+  githubUrl: null,
   linkedinUrl: 'https://linkedin.com/in/abdalhaleem-altamimi',
-  telegramUrl: null,
+  telegramUrl: 'https://t.me/InstaEclipsechat',
 };
 
 export const CONTRIBUTORS: ContributorItem[] = [
   LEAD_MAINTAINER,
   ORIGINAL_FOUNDER,
-  { name: 'swakwork', role: 'Hook Engineer', avatarInitials: 'SW', githubUrl: 'https://github.com/swakwork', linkedinUrl: null, telegramUrl: null },
-  { name: 'isma3iloiso', role: 'DexKit Integration', avatarInitials: 'IO', githubUrl: 'https://github.com/isma3iloiso', linkedinUrl: null, telegramUrl: null },
-  { name: 'Placeholder6', role: 'Core Logic', avatarInitials: 'P6', githubUrl: 'https://github.com/Placeholder6', linkedinUrl: null, telegramUrl: null },
-  { name: 'frknkrc44', role: 'AdBlock Rules', avatarInitials: 'FK', githubUrl: 'https://github.com/frknkrc44', linkedinUrl: null, telegramUrl: null },
-  { name: 'BrianML', role: 'UI Contributor', avatarInitials: 'BM', githubUrl: 'https://github.com/brianml31', linkedinUrl: null, telegramUrl: 'https://t.me/instamoon_channel' },
-  { name: 'silvzr', role: 'Media Downloader', avatarInitials: 'SZ', githubUrl: 'https://github.com/silvzr', linkedinUrl: null, telegramUrl: null },
-  { name: 'oct', role: 'Distraction Free', avatarInitials: 'OC', githubUrl: 'https://github.com/oct888', linkedinUrl: null, telegramUrl: null },
-  { name: 'HalfManBear', role: 'Developer Options', avatarInitials: 'HB', githubUrl: 'https://github.com/halfmanbear', linkedinUrl: null, telegramUrl: null },
-  { name: 'ar5to', role: 'Ghost Hook Specialist', avatarInitials: 'AR', githubUrl: 'https://github.com/ar5to', linkedinUrl: null, telegramUrl: 'https://t.me/ar5to' },
-  { name: 'particle-box', role: 'Tester & CI', avatarInitials: 'PB', githubUrl: 'https://github.com/particle-box', linkedinUrl: null, telegramUrl: null },
+  { name: 'swakwork', role: 'Hook Engineer', avatarInitials: 'SW', githubUrl: null, linkedinUrl: null, telegramUrl: null },
+  { name: 'isma3iloiso', role: 'DexKit Integration', avatarInitials: 'IO', githubUrl: null, linkedinUrl: null, telegramUrl: null },
+  { name: 'Placeholder6', role: 'Core Logic', avatarInitials: 'P6', githubUrl: null, linkedinUrl: null, telegramUrl: null },
+  { name: 'frknkrc44', role: 'AdBlock Rules', avatarInitials: 'FK', githubUrl: null, linkedinUrl: null, telegramUrl: null },
+  { name: 'BrianML', role: 'UI Contributor', avatarInitials: 'BM', githubUrl: null, linkedinUrl: null, telegramUrl: 'https://t.me/instamoon_channel' },
+  { name: 'silvzr', role: 'Media Downloader', avatarInitials: 'SZ', githubUrl: null, linkedinUrl: null, telegramUrl: null },
+  { name: 'oct', role: 'Distraction Free', avatarInitials: 'OC', githubUrl: null, linkedinUrl: null, telegramUrl: null },
+  { name: 'HalfManBear', role: 'Developer Options', avatarInitials: 'HB', githubUrl: null, linkedinUrl: null, telegramUrl: null },
+  { name: 'ar5to', role: 'Ghost Hook Specialist', avatarInitials: 'AR', githubUrl: null, linkedinUrl: null, telegramUrl: 'https://t.me/ar5to' },
+  { name: 'particle-box', role: 'Tester & CI', avatarInitials: 'PB', githubUrl: null, linkedinUrl: null, telegramUrl: null },
   { name: 'rsr', role: 'Security & Safety', avatarInitials: 'RS', githubUrl: null, linkedinUrl: null, telegramUrl: 'https://t.me/rsr1337' },
 ];
 
 export const SPECIAL_THANKS: ContributorItem[] = [
-  { name: 'xHookman', role: 'Android Hooking Research', avatarInitials: 'XH', githubUrl: 'https://github.com/xHookman', linkedinUrl: null, telegramUrl: null },
+  { name: 'xHookman', role: 'Android Hooking Research', avatarInitials: 'XH', githubUrl: null, linkedinUrl: null, telegramUrl: null },
   { name: 'Bluepapilte', role: 'Community Modding Support', avatarInitials: 'BP', githubUrl: null, linkedinUrl: null, telegramUrl: 'https://t.me/instasmashrepo' },
   { name: 'BdrcnAYYDIN', role: 'Localization & Testing', avatarInitials: 'BA', githubUrl: null, linkedinUrl: null, telegramUrl: 'https://t.me/BdrcnAYYDIN' },
   { name: 'Amàzing World', role: 'Feature Feedback', avatarInitials: 'AW', githubUrl: null, linkedinUrl: null, telegramUrl: null },
@@ -50,8 +50,8 @@ export const DETECTED_PACKAGES: InstagramPackage[] = [
   {
     pkg: 'com.instagram.android',
     label: 'Instagram (Official)',
-    versionName: '436.0.0.14.73',
-    versionCode: 436001473,
+    versionName: '443.0.0.48.82',
+    versionCode: 443004882,
     isInstalled: true,
   },
   {

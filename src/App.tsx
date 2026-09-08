@@ -11,6 +11,7 @@ import { ThemeCustomizerModal } from './components/ThemeCustomizerModal';
 import { LocationPickerModal } from './components/LocationPickerModal';
 import { AboutDialog } from './components/AboutDialog';
 import { UpdateModal } from './components/UpdateModal';
+import { ApkInstallerModal } from './components/ApkInstallerModal';
 
 const SUBMENU_TITLES: Record<FeatureSubmenu, string> = {
   main: 'Features',
@@ -37,6 +38,8 @@ const MainContent: React.FC = () => {
     setOpenThemeCustomizer,
     openLocationPicker,
     setOpenLocationPicker,
+    openApkInstallerModal,
+    setOpenApkInstallerModal,
   } = useApp();
 
   const getHeaderTitle = () => {
@@ -117,6 +120,10 @@ const MainContent: React.FC = () => {
       )}
       <AboutDialog />
       <UpdateModal />
+      <ApkInstallerModal
+        isOpen={openApkInstallerModal}
+        onClose={() => setOpenApkInstallerModal(false)}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

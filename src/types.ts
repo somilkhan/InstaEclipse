@@ -18,6 +18,10 @@ export interface AppVersionInfo {
   isLatest: boolean;
   latestVersion: string;
   changelog: string[];
+  apkFileName?: string;
+  apkFileSize?: string;
+  sha256Hash?: string;
+  apkDownloadUrl?: string;
 }
 
 export interface InstagramPackage {

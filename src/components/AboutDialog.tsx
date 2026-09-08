@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Sparkles,
   X,
-  Code2,
   ExternalLink,
   ShieldAlert,
   Send,
@@ -13,12 +12,13 @@ import {
   GitBranch,
   Copy,
   Check,
+  Download,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { LEAD_MAINTAINER, ORIGINAL_FOUNDER, CONTRIBUTORS, SPECIAL_THANKS } from '../data/contributors';
 
 export const AboutDialog: React.FC = () => {
-  const { openAboutDialog, setOpenAboutDialog, versionInfo, setOpenUpdateModal, showToast } = useApp();
+  const { openAboutDialog, setOpenAboutDialog, versionInfo, setOpenUpdateModal, setOpenApkInstallerModal, showToast } = useApp();
   const [activeCreditTab, setActiveCreditTab] = useState<'leadership' | 'team' | 'thanks'>('leadership');
   const [copiedTg, setCopiedTg] = useState(false);
 
@@ -49,13 +49,8 @@ export const AboutDialog: React.FC = () => {
 
         {/* Hero Branding */}
         <div className="flex flex-col items-center text-center pt-1">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/20 shadow-[0_0_25px_rgba(255,255,255,0.18)] mb-3 bg-zinc-950 flex items-center justify-center">
-            <img
-              src="/telegram_logo.jpg"
-              alt="InstaEclipse Emblem"
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover"
-            />
+          <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 p-0.5 shadow-[0_0_20px_rgba(255,255,255,0.12)] flex items-center justify-center mb-3">
+            <Sparkles className="w-7 h-7 text-white" />
           </div>
 
           <h2 className="text-xl font-black text-white tracking-tight">InstaEclipse</h2>
@@ -175,15 +170,38 @@ export const AboutDialog: React.FC = () => {
                 </div>
 
                 <a
-                  href={ORIGINAL_FOUNDER.githubUrl || '#'}
+                  href={ORIGINAL_FOUNDER.telegramUrl || 'https://t.me/InstaEclipsechat'}
                   target="_blank"
                   rel="noreferrer"
-                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white transition-colors shrink-0 cursor-pointer"
-                  title="GitHub Profile"
+                  className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer text-xs"
+                  title="Telegram Chat"
                 >
-                  <Code2 className="w-4 h-4" />
+                  <Send className="w-3.5 h-3.5 text-white" />
+                  <span>@InstaEclipsechat</span>
                 </a>
               </div>
+            </div>
+
+            {/* Official Telegram Community Chat Banner */}
+            <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-3.5 flex items-center justify-between gap-3 hover:border-white/20 transition-all">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0">
+                  <Send className="w-4 h-4 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-white text-xs truncate">Official Telegram Chat</p>
+                  <p className="text-[11px] text-zinc-400 truncate">@InstaEclipsechat &bull; Discussion & Support</p>
+                </div>
+              </div>
+              <a
+                href="https://t.me/InstaEclipsechat"
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 rounded-xl bg-white text-zinc-950 font-bold text-xs hover:bg-zinc-200 transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
+              >
+                <Send className="w-3 h-3" />
+                <span>Join Chat</span>
+              </a>
             </div>
           </div>
         )}
@@ -223,17 +241,6 @@ export const AboutDialog: React.FC = () => {
                       title="Telegram"
                     >
                       <Send className="w-3.5 h-3.5" />
-                    </a>
-                  )}
-                  {c.githubUrl && (
-                    <a
-                      href={c.githubUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                      title="GitHub"
-                    >
-                      <Code2 className="w-3.5 h-3.5" />
                     </a>
                   )}
                   {c.linkedinUrl && (
@@ -295,13 +302,24 @@ export const AboutDialog: React.FC = () => {
         </div>
 
         {/* Footer Actions */}
-        <div className="flex gap-2 pt-2 border-t border-white/8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-white/8">
+          <button
+            onClick={() => {
+              setOpenAboutDialog(false);
+              setOpenApkInstallerModal(true);
+            }}
+            className="py-2.5 px-3 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-lg shadow-white/10"
+          >
+            <Download className="w-4 h-4" />
+            <span>Get v2.0 APK</span>
+          </button>
+
           <button
             onClick={() => {
               setOpenAboutDialog(false);
               setOpenUpdateModal(true);
             }}
-            className="flex-1 py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <ArrowUpCircle className="w-4 h-4" />
             <span>Check Updates</span>
@@ -309,7 +327,7 @@ export const AboutDialog: React.FC = () => {
 
           <button
             onClick={() => setOpenAboutDialog(false)}
-            className="flex-1 py-2.5 px-3 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold transition-colors cursor-pointer"
+            className="py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-semibold transition-colors cursor-pointer"
           >
             Close
           </button>
