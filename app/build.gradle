@@ -70,6 +70,7 @@ dependencies {
     implementation libs.gson
     implementation libs.dexkit
     implementation "androidx.documentfile:documentfile:1.1.0"
+    implementation "androidx.webkit:webkit:1.12.1"
     implementation libs.osmdroid
     implementation libs.fileprefs
 
