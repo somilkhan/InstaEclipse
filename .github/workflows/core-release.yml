@@ -1,24 +1,13 @@
 name: InstaEclipse Core Release
 
 on:
-  push:
-    branches:
-      - stability/latest-instagram
-    paths:
-      - "app/**"
-      - "gradle/**"
-      - "build.gradle"
-      - "settings.gradle"
-      - "gradle.properties"
-      - "gradlew"
-      - "gradlew.bat"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: core-release-${{ github.ref }}
+  group: core-release-manual-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -27,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Checkout selected branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
@@ -44,23 +33,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
-      - name: Check whether this Core release already exists
-        id: existing
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if gh release view "core/v${VERSION}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Core v${VERSION} already exists; no duplicate release will be created."
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Set up JDK 17
-        if: steps.existing.outputs.exists != 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -68,29 +41,23 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        if: steps.existing.outputs.exists != 'true'
         uses: android-actions/setup-android@v3
         with:
           packages: platform-tools build-tools;35.0.0 platforms;android-35
 
       - name: Validate Gradle wrapper
-        if: steps.existing.outputs.exists != 'true'
         uses: gradle/actions/wrapper-validation@v4
 
       - name: Make Gradle executable
-        if: steps.existing.outputs.exists != 'true'
         run: chmod +x ./gradlew
 
       - name: Run Core unit tests
-        if: steps.existing.outputs.exists != 'true'
         run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
 
       - name: Run Core lint
-        if: steps.existing.outputs.exists != 'true'
         run: ./gradlew :app:lintDebug --no-daemon --stacktrace
 
       - name: Prepare release signing key
-        if: steps.existing.outputs.exists != 'true'
         env:
           KEYSTORE_B64: ${{ secrets.INSTAECLIPSE_KEYSTORE_BASE64 }}
         shell: bash
@@ -101,7 +68,6 @@ jobs:
           test -s /tmp/instaeclipse-release.jks
 
       - name: Build signed Core release
-        if: steps.existing.outputs.exists != 'true'
         env:
           KEYSTORE_PASSWORD: ${{ secrets.INSTAECLIPSE_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.INSTAECLIPSE_KEY_ALIAS }}
@@ -117,7 +83,6 @@ jobs:
             -PcoreReleaseKeyPassword="$KEY_PASSWORD"
 
       - name: Verify signed Core APK
-        if: steps.existing.outputs.exists != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -137,15 +102,18 @@ jobs:
           sha256sum "dist/instaeclipse-core-${{ steps.version.outputs.version }}.apk" > dist/SHA256SUMS-core.txt
 
       - name: Publish Core GitHub release
-        if: steps.existing.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
+          if gh release view "core/v${VERSION}" >/dev/null 2>&1; then
+            echo "Core v${VERSION} already exists; nothing to publish."
+            exit 0
+          fi
           gh release create "core/v${VERSION}" \
             "dist/instaeclipse-core-${VERSION}.apk" dist/SHA256SUMS-core.txt \
             --target "$GITHUB_SHA" \
             --title "InstaEclipse Core ${VERSION}" \
-            --notes "Signed InstaEclipse Core APK release."
+            --notes "Signed InstaEclipse Core APK. Install this APK first; downloadable feature packs are managed from the in-app Plugins hub."

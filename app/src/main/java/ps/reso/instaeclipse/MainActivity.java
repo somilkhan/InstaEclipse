@@ -1,33 +1,23 @@
 package ps.reso.instaeclipse;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
-import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.View;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-
+import android.view.Menu;
+import android.view.MenuItem;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
+import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.webkit.WebViewAssetLoader;
-
-import org.json.JSONArray;
-
-import java.util.Arrays;
-import java.util.List;
-
+import androidx.fragment.app.Fragment;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import ps.reso.instaeclipse.fragments.FeaturesFragment;
+import ps.reso.instaeclipse.fragments.HelpFragment;
+import ps.reso.instaeclipse.fragments.HomeFragment;
+import ps.reso.instaeclipse.fragments.LoggingFragment;
 import ps.reso.instaeclipse.utils.log.Logging;
 import ps.reso.instaeclipse.utils.version.VersionCheckUtility;
 
@@ -36,148 +26,54 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS = "instaeclipse_setup";
     private static final String KEY_STORAGE_PROMPTED = "storage_permission_prompted";
 
-    private static final List<String> SUPPORTED_TARGETS = Arrays.asList(
-            "com.instagram.android", "com.instagold.android", "com.instaflux.app", "com.myinsta.android",
-            "cc.honista.app", "com.instaprime.android", "com.instafel.android", "com.instadm.android",
-            "com.dfistagram.android", "com.Instander.android", "com.aero.instagram", "com.instapro.android",
-            "com.instaflow.android", "com.instagram1.android", "com.instagram2.android", "com.instagramclone.android",
-            "com.instaclone.android"
-    );
-
-    private WebView webView;
-
-    @SuppressLint("SetJavaScriptEnabled")
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+    @Override protected void onCreate(Bundle savedInstanceState) {
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         super.onCreate(savedInstanceState);
         Logging.init(this, "instaeclipse_companion.log");
         VersionCheckUtility.checkForUpdates(this);
+        setContentView(R.layout.activity_main);
         requestLegacyStoragePermissionOnFirstLaunch();
 
-        webView = new WebView(this);
-        setContentView(webView);
-        applySystemBarInsets(webView);
-        configureWebView(webView);
-        webView.loadUrl("https://appassets.androidplatform.net/assets/web/index.html");
-    }
-
-    private void applySystemBarInsets(View view) {
-        ViewCompat.setOnApplyWindowInsetsListener(view, (v, insets) -> {
-            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(0, bars.top, 0, bars.bottom);
-            return insets;
-        });
-        ViewCompat.requestApplyInsets(view);
-    }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    private void configureWebView(WebView view) {
-        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
-        WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
-                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
-                .build();
-
-        view.setBackgroundColor(0xFF070709);
-        view.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
-        view.getSettings().setJavaScriptEnabled(true);
-        view.getSettings().setDomStorageEnabled(true);
-        view.getSettings().setDatabaseEnabled(true);
-        view.getSettings().setAllowFileAccess(false);
-        view.getSettings().setAllowContentAccess(false);
-        view.getSettings().setSupportMultipleWindows(false);
-        view.getSettings().setBuiltInZoomControls(false);
-        view.getSettings().setDisplayZoomControls(false);
-        view.getSettings().setTextZoom(100);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) view.getSettings().setSafeBrowsingEnabled(true);
-
-        view.addJavascriptInterface(new AndroidBridge(this), "InstaEclipseAndroid");
-        view.setWebChromeClient(new WebChromeClient());
-        view.setWebViewClient(new WebViewClient() {
-            @Override
-            public android.webkit.WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest request) {
-                return assetLoader.shouldInterceptRequest(request.getUrl());
-            }
-            @Override
-            public android.webkit.WebResourceResponse shouldInterceptRequest(WebView v, String url) {
-                return assetLoader.shouldInterceptRequest(Uri.parse(url));
-            }
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
-                return request != null && request.getUrl() != null && handleNavigation(request.getUrl());
-            }
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView v, String url) {
-                return handleNavigation(Uri.parse(url));
-            }
+        Toolbar toolbar = findViewById(R.id.top_app_bar); setSupportActionBar(toolbar);
+        ActionBar actionBar = getSupportActionBar(); if (actionBar != null) actionBar.setDisplayShowTitleEnabled(false);
+        TextView toolbarVersion = findViewById(R.id.toolbar_version);
+        toolbarVersion.setText("v" + BuildConfig.VERSION_NAME);
+        BottomNavigationView bottomNavigation = findViewById(R.id.bottom_navigation);
+        FrameLayout fragmentContainer = findViewById(R.id.fragment_container);
+        bottomNavigation.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> { int navHeight = v.getHeight(); int bottomPadding = navHeight + dp(8); if (fragmentContainer.getPaddingBottom() != bottomPadding) fragmentContainer.setPadding(dp(12), 0, dp(12), bottomPadding); });
+        if (savedInstanceState == null) getSupportFragmentManager().beginTransaction().replace(R.id.fragment_container, new HomeFragment()).commit();
+        bottomNavigation.setSelectedItemId(R.id.nav_home);
+        bottomNavigation.setOnItemSelectedListener(item -> {
+            Fragment selectedFragment = null;
+            if (item.getItemId() == R.id.nav_home) selectedFragment = new HomeFragment();
+            else if (item.getItemId() == R.id.nav_features) selectedFragment = new FeaturesFragment();
+            else if (item.getItemId() == R.id.nav_logs) selectedFragment = new LoggingFragment();
+            else if (item.getItemId() == R.id.nav_help) selectedFragment = new HelpFragment();
+            if (selectedFragment != null) getSupportFragmentManager().beginTransaction().setReorderingAllowed(true).replace(R.id.fragment_container, selectedFragment).commit();
+            return true;
         });
     }
 
-    private boolean handleNavigation(Uri uri) {
-        if (uri == null) return true;
-        if ("appassets.androidplatform.net".equalsIgnoreCase(uri.getHost())) return false;
-        try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { }
-        return true;
+    @Override public boolean onCreateOptionsMenu(Menu menu) {
+        MenuItem modernUi = menu.add(0, 1001, 0, "Modern Glass UI");
+        modernUi.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        return super.onCreateOptionsMenu(menu);
     }
 
-    @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (webView != null) {
-            webView.removeJavascriptInterface("InstaEclipseAndroid");
-            webView.stopLoading();
-            webView.destroy();
-            webView = null;
+    @Override public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == 1001) {
+            startActivity(new Intent(this, WebUiActivity.class));
+            return true;
         }
-        super.onDestroy();
+        return super.onOptionsItemSelected(item);
     }
 
+    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     private void requestLegacyStoragePermissionOnFirstLaunch() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return;
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) return;
+        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) return;
         if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_STORAGE_PROMPTED, false)) return;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_STORAGE_PROMPTED, true).apply();
         requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_REQUEST);
-    }
-
-    public static final class AndroidBridge {
-        private final Context context;
-        AndroidBridge(Context context) { this.context = context.getApplicationContext(); }
-
-        @JavascriptInterface
-        public String getInstalledPackages() {
-            JSONArray result = new JSONArray();
-            PackageManager pm = context.getPackageManager();
-            for (String packageName : SUPPORTED_TARGETS) {
-                try { pm.getPackageInfo(packageName, 0); result.put(packageName); }
-                catch (PackageManager.NameNotFoundException ignored) { }
-            }
-            return result.toString();
-        }
-
-        @JavascriptInterface
-        public boolean restartPackage(String packageName) {
-            if (packageName == null || !SUPPORTED_TARGETS.contains(packageName)) return false;
-            Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(packageName);
-            if (launchIntent == null) return false;
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            try { context.startActivity(launchIntent); return true; }
-            catch (Exception ignored) { return false; }
-        }
-
-        @JavascriptInterface public boolean isNativeApp() { return true; }
-        @JavascriptInterface public String getVersionName() { return BuildConfig.VERSION_NAME; }
-
-        @JavascriptInterface
-        public void openExternalUrl(String url) {
-            if (url == null || url.trim().isEmpty()) return;
-            try { context.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
-            catch (Exception ignored) { }
-        }
     }
 }

@@ -5,17 +5,9 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">@color/white</item>
-        <item name="colorPrimary">@color/white</item>
-        <item name="colorSecondary">@color/white</item>
-        <item name="colorSecondaryContainer">#151515</item>
-        <item name="colorOnSecondaryContainer">@color/white</item>
-        <item name="colorSurface">@color/dark_gray</item>
-        <item name="colorSurfaceContainer">@color/dark_gray</item>
-        <item name="colorSurfaceContainerLow">#101010</item>
-        <item name="colorSurfaceContainerHigh">#151515</item>
-        <item name="colorOnSurface">@color/white</item>
-        <item name="colorOnSurfaceVariant">#A8A8A8</item>
+        <item name="android:colorAccent">@color/accent_blue</item>
+        <item name="colorPrimary">@color/accent_blue</item>
+        <item name="colorSecondary">@color/purple_200</item>
         <item name="android:windowBackground">@color/black</item>
     </style>
 </resources>

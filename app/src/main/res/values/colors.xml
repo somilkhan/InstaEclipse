@@ -1,18 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Native InstaEclipse visual system: near-black surfaces, neutral hierarchy. -->
-    <color name="black">#050505</color>
-    <color name="red">#F5F5F5</color>
-    <color name="dark_red">#151515</color>
-    <color name="dark_gray">#101010</color>
-    <color name="gray">#2A2A2A</color>
-    <color name="white">#F5F5F5</color>
-    <color name="accent_blue">#F5F5F5</color>
-    <color name="warning_yellow">#D0D0D0</color>
-    <color name="green">#151515</color>
-    <color name="dark_green">#151515</color>
+    <color name="black">#121212</color>
+    <color name="red">#FF0000</color>
+    <color name="dark_red">#C3172D</color>
+    <color name="dark_gray">#1E1E1E</color>
+    <color name="gray">#3C3C3C</color>
+    <color name="white">#FFFFFF</color>
+    <color name="accent_blue">#448AFF</color>
+    <color name="warning_yellow">#FFCA28</color>
+    <color name="green">#4CAF50</color>
+    <color name="dark_green">#21C063</color>
 
-    <color name="bottom_nav_icon">#8A8A8A</color>
-    <color name="bottom_nav_icon_active">#F5F5F5</color>
-    <color name="purple_200">#D0D0D0</color>
+
+    <!-- Bottom Navigation Colors -->
+    <color name="bottom_nav_icon">#B0BEC5</color>
+    <color name="bottom_nav_icon_active">#448AFF</color>
+    <color name="purple_200">#9C27B0</color>
 </resources>

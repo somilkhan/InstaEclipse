@@ -2,10 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-// The production bundle is also embedded into the Android APK WebView.
-// A relative base keeps Vite asset URLs valid from file:///android_asset/web/.
+// https://vite.dev/config/
 export default defineConfig({
-  base: './',
   plugins: [react(), tailwindcss()],
   server: {
     host: '0.0.0.0',

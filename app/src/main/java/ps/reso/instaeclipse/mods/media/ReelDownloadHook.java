@@ -1,7 +1,6 @@
 package ps.reso.instaeclipse.mods.media;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,12 +10,10 @@ import org.luckypray.dexkit.DexKitBridge;
 import org.luckypray.dexkit.query.FindMethod;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
 
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -28,56 +25,129 @@ import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class ReelDownloadHook {
+
     private static Class<?> controllerClass;
-    private static Method hookMethod;
-    private static Method builderAddMethod;
-    private static Field activityField;
-    private static Field cachedOuterField;
-    private static Field cachedInnerField;
-    private static final AtomicBoolean OPTIONS_PATCH_INSTALLED = new AtomicBoolean(false);
-    private static final AtomicBoolean CONTROLLER_HOOK_INSTALLED = new AtomicBoolean(false);
-    private static final AtomicBoolean BUILDER_GUARD_INSTALLED = new AtomicBoolean(false);
-    private static final Map<Object, Boolean> INJECTED_BUILDERS = new WeakHashMap<>();
+    private static Method   hookMethod;
+
+    private static Method buttonAdderMethod;
+    private static Field  activityField;
+
+    // Cached field path to the carousel position holder on the controller.
+    // The position holder is identified structurally: a non-framework object field
+    // whose class has exactly ONE int field (survives obfuscation renames).
+    private static Field cachedOuterField = null;
+    private static Field cachedInnerField = null;
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
-        installRemoveNativeDownloadOption(bridge, classLoader);
-        installReelOptionsController(bridge, classLoader);
-    }
+        installNativeDownloadGateUnlock(bridge, classLoader);
+        installReduceOptionsListPatch(bridge, classLoader);
 
-    /**
-     * Instagram 443 still has a reduced-options ArrayList path. Keep this as a
-     * compatibility layer so the native DOWNLOAD enum cannot produce a second
-     * download action alongside our single Reel Download entry.
-     */
-    private static void installRemoveNativeDownloadOption(DexKitBridge bridge, ClassLoader classLoader) {
-        if (!OPTIONS_PATCH_INSTALLED.compareAndSet(false, true)) return;
-        try {
-            Class<?> optionClass = classLoader.loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
-            Object download = null;
-            for (Object value : (Object[]) optionClass.getMethod("values").invoke(null)) {
-                if ("DOWNLOAD".equals(value.toString())) {
-                    download = value;
-                    break;
-                }
-            }
-            if (download == null) {
-                OPTIONS_PATCH_INSTALLED.set(false);
+        if (DexKitCache.isCacheValid()) {
+            Method cached = DexKitCache.loadMethod("ReelDownload", classLoader);
+            if (cached != null) {
+                controllerClass = cached.getDeclaringClass();
+                hookMethod = cached;
+                cached.setAccessible(true);
+                FeatureStatusTracker.setHooked("ReelDownload");
+                XposedBridge.hookMethod(cached, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        if (!FeatureFlags.enableReelDownload) return;
+                        onOptionsBuilt(param);
+                    }
+                });
+                ModuleLog.line("(IE|Reel) ✅ hooked: " + hookMethod.getDeclaringClass().getName() + "." + hookMethod.getName());
                 return;
             }
-            final Object nativeDownload = download;
-            XC_MethodHook removeHook = new XC_MethodHook() {
-                @Override protected void afterHookedMethod(MethodHookParam p) {
+        }
+
+        try {
+            var methods = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .usingStrings("ClipsOrganicMediaItemViewMoreOptionsController")));
+
+            if (methods.isEmpty()) {
+                ModuleLog.line("(IE|Reel) ❌ ClipsOrganicMediaItemViewMoreOptionsController not found");
+                return;
+            }
+
+            controllerClass = methods.get(0).getMethodInstance(classLoader).getDeclaringClass();
+
+            // Find the options-builder method: void(com.instagram.feed.media.Media, <ButtonAdder>)
+            Method target = null;
+            for (Method m : controllerClass.getDeclaredMethods()) {
+                if (m.getReturnType() != void.class) continue;
+                Class<?>[] params = m.getParameterTypes();
+                if (params.length < 2) continue;
+                if (!params[0].getName().equals("com.instagram.feed.media.Media")) continue;
+                if (params[1].isPrimitive() || params[1] == String.class) continue;
+                target = m;
+                break;
+            }
+
+            if (target == null) {
+                ModuleLog.line("(IE|Reel) ❌ hook method (Media, ButtonAdder)V not found");
+                return;
+            }
+
+            target.setAccessible(true);
+            hookMethod = target;
+            DexKitCache.saveMethod("ReelDownload", target);
+            FeatureStatusTracker.setHooked("ReelDownload");
+
+            XposedBridge.hookMethod(target, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    if (!FeatureFlags.enableReelDownload) return;
+                    onOptionsBuilt(param);
+                }
+            });
+            ModuleLog.line("(IE|Reel) ✅ hooked: " + hookMethod.getDeclaringClass().getName() + "." + hookMethod.getName());
+
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|Reel) ❌ install: " + t);
+        }
+    }
+
+    // ── Reduced options-list patch ──────────────────────────────────────────────
+    //
+    // IG's newer, simplified reel overflow menu builds its option list via one
+    // method that returns a plain ArrayList<MediaOption$Option> (SAVE/UNSAVE,
+    // PLAYBACK_CONTROLS, WHY_AM_I_SEEING_THIS, INTERESTED, NOT_INTERESTED,
+    // TAG_OPTIONS, REPORT, REQUEST_COMMUNITY_NOTE, DEBUG_STICKER_TRANSLATION) —
+    // DOWNLOAD was dropped entirely from this list, unlike the older/fuller
+    // overflow-menu code path. Found via field-usage matching on two of its
+    // distinctive enum references. Appending DOWNLOAD to the returned (mutable)
+    // ArrayList lets it flow through the same generic per-option row builder
+    // (LX/5RY;->A0Q -> LX/QIy;->A04) used for every other option here — same
+    // shared row primitive the post menu uses, so PostDownloadContextMenuHook's
+    // app-wide click-handler hook already covers whatever dispatches its click.
+    private static void installReduceOptionsListPatch(DexKitBridge bridge, ClassLoader classLoader) {
+        try {
+            Object downloadOption = null;
+            Class<?> optionClass = classLoader.loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
+            for (Object v : (Object[]) optionClass.getMethod("values").invoke(null)) {
+                if (v.toString().equals("DOWNLOAD")) { downloadOption = v; break; }
+            }
+            if (downloadOption == null) {
+                ModuleLog.line("(IE|Reel) ❌ DOWNLOAD enum value not found");
+                return;
+            }
+            final Object download = downloadOption;
+
+            XC_MethodHook hook = new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
                     if (!FeatureFlags.enableReelDownload) return;
                     try {
-                        Object result = p.getResult();
-                        if (result instanceof List<?>) {
+                        Object result = param.getResult();
+                        if (result instanceof List<?> list && !list.contains(download)) {
                             @SuppressWarnings("unchecked")
-                            List<Object> list = (List<Object>) result;
-                            list.remove(nativeDownload);
+                            List<Object> mutable = (List<Object>) list;
+                            mutable.add(download);
                         }
                     } catch (Throwable t) {
-                        ModuleLog.line("(IE|Reel) ⚠️ native DOWNLOAD removal failed: "
-                                + t.getClass().getSimpleName());
+                        ModuleLog.line("(IE|Reel) ❌ options-list patch failed: " + t);
                     }
                 }
             };
@@ -85,375 +155,359 @@ public class ReelDownloadHook {
             if (DexKitCache.isCacheValid()) {
                 Method cached = DexKitCache.loadMethod("ReelOptionsListBuilder", classLoader);
                 if (cached != null) {
-                    XposedBridge.hookMethod(cached, removeHook);
+                    XposedBridge.hookMethod(cached, hook);
                     return;
                 }
             }
 
-            String optionDescriptor = "Lcom/instagram/feed/media/mediaoption/MediaOption$Option;";
-            var methods = bridge.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create()
+            String optionDesc = "Lcom/instagram/feed/media/mediaoption/MediaOption$Option;";
+            var methods = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
                             .returnType("java.util.ArrayList")
-                            .addUsingField(optionDescriptor + "->PLAYBACK_CONTROLS:" + optionDescriptor)
-                            .addUsingField(optionDescriptor + "->UNSAVE:" + optionDescriptor)));
+                            .addUsingField(optionDesc + "->PLAYBACK_CONTROLS:" + optionDesc)
+                            .addUsingField(optionDesc + "->UNSAVE:" + optionDesc)));
+
             if (methods.isEmpty()) {
-                OPTIONS_PATCH_INSTALLED.set(false);
-                ModuleLog.line("(IE|Reel) ⚠️ native DOWNLOAD option builder not found");
+                ModuleLog.line("(IE|Reel) ⚠️ Reduced options-list builder not found");
                 return;
             }
+
             Method target = methods.get(0).getMethodInstance(classLoader);
             target.setAccessible(true);
-            XposedBridge.hookMethod(target, removeHook);
+            XposedBridge.hookMethod(target, hook);
             DexKitCache.saveMethod("ReelOptionsListBuilder", target);
-            ModuleLog.line("(IE|Reel) ✅ native DOWNLOAD list suppression hooked");
-        } catch (Throwable t) {
-            OPTIONS_PATCH_INSTALLED.set(false);
-            ModuleLog.line("(IE|Reel) ⚠️ native DOWNLOAD suppression unavailable: "
-                    + t.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * Resolve the actual 443 overflow-menu controller from the stable purge marker,
-     * then select its real A0A(Media,...,0QgR,boolean) row-building method.
-     *
-     * The old implementation took the first DexKit result's declaring class. In 443
-     * that result can be an unrelated helper (e.g. X.05BL), so the Reel hook never
-     * ran when the visible "About this reel" sheet was built. The APK proves that
-     * X.06TG is the actual ClipsOrganicMediaItemViewMoreOptionsController and that
-     * A0A receives the Media plus the live X.0QgR menu builder.
-     */
-    private static void installReelOptionsController(DexKitBridge bridge, ClassLoader classLoader) {
-        if (!CONTROLLER_HOOK_INSTALLED.compareAndSet(false, true)) return;
-        try {
-            Method target = null;
-            Class<?> resolvedController = null;
-            var methods = bridge.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().usingStrings("android_purge_26_q3_ClipsOrganicMediaItemViewMoreOptionsController")));
-
-            for (var result : methods) {
-                Class<?> candidateClass = result.getMethodInstance(classLoader).getDeclaringClass();
-                for (Method m : candidateClass.getDeclaredMethods()) {
-                    Class<?>[] ps = m.getParameterTypes();
-                    if (m.getReturnType() == void.class
-                            && "A0A".equals(m.getName())
-                            && ps.length == 5
-                            && "com.instagram.feed.media.Media".equals(ps[2].getName())
-                            && "X.0QgR".equals(ps[3].getName())
-                            && ps[4] == boolean.class) {
-                        resolvedController = candidateClass;
-                        target = m;
-                        break;
-                    }
-                }
-                if (target != null) break;
-            }
-
-            if (target == null) {
-                ModuleLog.line("(IE|Reel) ❌ 443 reel options builder A0A not found");
-                CONTROLLER_HOOK_INSTALLED.set(false);
-                return;
-            }
-
-            controllerClass = resolvedController;
-            hookMethod = target;
-            hookMethod.setAccessible(true);
             FeatureStatusTracker.setHooked("ReelDownload");
-            DexKitCache.saveMethod("ReelDownload", hookMethod);
+            ModuleLog.line("(IE|Reel) ✅ Options-list patch hooked: " +
+                    target.getDeclaringClass().getName() + "." + target.getName());
 
-            XposedBridge.hookMethod(hookMethod, new XC_MethodHook() {
-                @Override protected void afterHookedMethod(MethodHookParam p) {
-                    if (!FeatureFlags.enableReelDownload || p.args == null || p.args.length < 4) return;
-                    Object media = p.args[2];
-                    Object builder = p.args[3];
-                    injectReelDownloadOption(p.thisObject, media, builder);
-                }
-            });
-
-            ModuleLog.line("(IE|Reel) ✅ hooked actual options builder: "
-                    + controllerClass.getName() + "." + hookMethod.getName());
         } catch (Throwable t) {
-            CONTROLLER_HOOK_INSTALLED.set(false);
-            ModuleLog.line("(IE|Reel) ❌ controller hook install: " + t);
+            ModuleLog.line("(IE|Reel) ❌ installReduceOptionsListPatch: " + t);
         }
     }
 
-    private static void injectReelDownloadOption(Object controller, Object media, Object builder) {
-        if (builder == null || media == null) return;
-        synchronized (INJECTED_BUILDERS) {
-            if (INJECTED_BUILDERS.containsKey(builder)) return;
-            INJECTED_BUILDERS.put(builder, Boolean.TRUE);
+    // ── Native download-row unlock ──────────────────────────────────────────────
+    //
+    // IG 437+ moved the reel overflow menu to the same shared row-builder (QIy) used
+    // by the post menu, and it already has a fully-working, native DOWNLOAD row —
+    // gated behind two eligibility checks (a "can this media be downloaded" gate and
+    // a "is the viewer restricted" gate). When both pass, native code adds the row
+    // via the same QIy.A04 primitive posts use, with a working click handler already
+    // wired to Instagram's own save-to-camera-roll flow. Bypassing the two gates is
+    // far simpler and more robust than reconstructing that row/click machinery
+    // ourselves. Found via each gate's distinct hardcoded MobileConfig param ID.
+    private static void installNativeDownloadGateUnlock(DexKitBridge bridge, ClassLoader classLoader) {
+        // "Can this media be downloaded" — force true.
+        installGateHook(bridge, classLoader, "ReelDownloadGate_eligible",
+                36313978552585585L, // 0x81035f00020d71
+                "com.instagram.common.session.UserSession", "com.instagram.feed.media.Media",
+                true);
+
+        // "Is the viewer restricted from downloading" — force false.
+        installGateHook(bridge, classLoader, "ReelDownloadGate_restricted",
+                36313978552847731L, // 0x81035f00060d73
+                "com.instagram.common.session.UserSession", "boolean",
+                false);
+    }
+
+    private static void installGateHook(DexKitBridge bridge, ClassLoader classLoader,
+                                         String cacheKey, long configId,
+                                         String param1Type, String param2Type,
+                                         boolean forcedResult) {
+        XC_MethodHook hook = new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                ModuleLog.line("(IE|Reel|DEBUG) gate fired: " + cacheKey + " enabled=" + FeatureFlags.enableReelDownload);
+                if (FeatureFlags.enableReelDownload) param.setResult(forcedResult);
+            }
+        };
+
+        if (DexKitCache.isCacheValid()) {
+            Method cached = DexKitCache.loadMethod(cacheKey, classLoader);
+            if (cached != null) {
+                XposedBridge.hookMethod(cached, hook);
+                return;
+            }
         }
+
         try {
-            Activity activity = resolveActivity(controller);
-            if (activity == null) {
-                ModuleLog.line("(IE|Reel) ⚠️ menu activity not resolved");
+            var methods = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .paramTypes(param1Type, param2Type)
+                            .returnType("boolean")
+                            .usingNumbers(configId)));
+
+            if (methods.isEmpty()) {
+                ModuleLog.line("(IE|Reel) ⚠️ Gate method not found for config " + configId);
                 return;
             }
 
-            Method add = resolveBuilderAddMethod(builder.getClass());
-            if (add == null) {
-                ModuleLog.line("(IE|Reel) ❌ X.0QgR add-option method not found");
-                return;
-            }
-            builderAddMethod = add;
+            Method target = methods.get(0).getMethodInstance(classLoader);
+            target.setAccessible(true);
+            XposedBridge.hookMethod(target, hook);
+            DexKitCache.saveMethod(cacheKey, target);
+            FeatureStatusTracker.setHooked("ReelDownload");
+            ModuleLog.line("(IE|Reel) ✅ Gate unlocked: " +
+                    target.getDeclaringClass().getName() + "." + target.getName() + " -> " + forcedResult);
 
-            int icon = resolveDownloadIcon(activity);
-            final Activity a = activity;
-            final Object mc = media;
-            final Object cc = controller;
-            View.OnClickListener listener = v -> showReelDownloadChooser(a, mc, cc);
-
-            add.invoke(builder, activity, listener, "Reel Download", icon);
-            ModuleLog.line("(IE|Reel) ✅ injected Reel Download into X.0QgR builder");
         } catch (Throwable t) {
-            ModuleLog.line("(IE|Reel) ❌ Reel menu injection: " + t);
+            ModuleLog.line("(IE|Reel) ❌ installGateHook(" + cacheKey + "): " + t);
         }
-    }
-
-    private static Method resolveBuilderAddMethod(Class<?> builderClass) {
-        if (builderAddMethod != null) return builderAddMethod;
-        Class<?> owner = builderClass;
-        while (owner != null && owner != Object.class) {
-            for (Method m : owner.getDeclaredMethods()) {
-                Class<?>[] ps = m.getParameterTypes();
-                if (m.getReturnType() == void.class
-                        && ps.length == 4
-                        && Context.class.isAssignableFrom(ps[0])
-                        && View.OnClickListener.class.isAssignableFrom(ps[1])
-                        && ps[2] == String.class
-                        && ps[3] == int.class) {
-                    m.setAccessible(true);
-                    return m;
-                }
-            }
-            owner = owner.getSuperclass();
-        }
-        return null;
     }
 
     /**
-     * Defensive suppression at the real shared menu-builder boundary. X.0QgR.A01,
-     * A02 and A03 all accept (Context, OnClickListener, String, int); Instagram's
-     * native DOWNLOAD row therefore cannot be inserted after the reduced-list patch.
+     * Fallback index resolver: structurally locates the carousel position holder on the
+     * controller. The holder is the unique non-framework field whose class has exactly
+     * ONE int field — this property survives obfuscation renames across IG versions.
+     * Values outside [0, 200) are excluded to filter out config constants.
+     * Result is cached after first resolution.
      */
-    private static void installNativeDownloadBuilderGuard(Object builder) {
-        if (builder == null || BUILDER_GUARD_INSTALLED.get()) return;
-        Class<?> owner = builder.getClass();
-        while (owner != null && owner != Object.class) {
-            for (Method m : owner.getDeclaredMethods()) {
-                Class<?>[] ps = m.getParameterTypes();
-                if (m.getReturnType() == void.class && ps.length == 4
-                        && Context.class.isAssignableFrom(ps[0])
-                        && View.OnClickListener.class.isAssignableFrom(ps[1])
-                        && ps[2] == String.class && ps[3] == int.class) {
-                    try {
-                        m.setAccessible(true);
-                        if (!BUILDER_GUARD_INSTALLED.compareAndSet(false, true)) return;
-                        XposedBridge.hookMethod(m, new XC_MethodHook() {
-                            @Override protected void beforeHookedMethod(MethodHookParam p) {
-                                if (!FeatureFlags.enableReelDownload || p.args == null || p.args.length < 3) return;
-                                if (!(p.args[2] instanceof String)) return;
-                                String label = ((String) p.args[2]).trim().toLowerCase(java.util.Locale.ROOT);
-                                if (isNativeDownloadLabel(label)) {
-                                    ModuleLog.line("(IE|Reel) 🚫 native Download row suppressed");
-                                    p.setResult(null);
-                                }
-                            }
-                        });
-                        ModuleLog.line("(IE|Reel) ✅ X.0QgR Download-row guard hooked");
-                    } catch (Throwable t) {
-                        BUILDER_GUARD_INSTALLED.set(false);
-                        ModuleLog.line("(IE|Reel) ⚠️ X.0QgR guard unavailable: "
-                                + t.getClass().getSimpleName());
-                    }
-                    return;
-                }
-            }
-            owner = owner.getSuperclass();
-        }
-    }
-
-    private static boolean isNativeDownloadLabel(String label) {
-        if (label == null || label.isEmpty()) return false;
-        String normalized = label.replace("_", " ").trim();
-        return normalized.equals("download")
-                || normalized.equals("download reel")
-                || normalized.equals("download video");
-    }
-
-    private static Activity resolveActivity(Object controller) {
-        if (controller == null) return null;
-        try {
-            if (activityField != null) {
-                Object value = activityField.get(controller);
-                if (value instanceof Activity) return (Activity) value;
-            }
-        } catch (Throwable ignored) {}
-        Class<?> c = controller.getClass();
-        while (c != null && c != Object.class) {
-            for (Field f : c.getDeclaredFields()) {
-                if (!Activity.class.isAssignableFrom(f.getType())) continue;
-                try {
-                    f.setAccessible(true);
-                    Object value = f.get(controller);
-                    if (value instanceof Activity) {
-                        activityField = f;
-                        return (Activity) value;
-                    }
-                } catch (Throwable ignored) {}
-            }
-            c = c.getSuperclass();
-        }
-        return null;
-    }
-
     private static int findReelCarouselIndex(Object controller) {
         if (controller == null) return 0;
+
         if (cachedOuterField != null && cachedInnerField != null) {
             try {
                 Object holder = cachedOuterField.get(controller);
                 if (holder != null) return cachedInnerField.getInt(holder);
             } catch (Throwable ignored) {}
+            cachedOuterField = null;
+            cachedInnerField = null;
         }
-        int best = Integer.MAX_VALUE;
-        Field bestOuter = null, bestInner = null;
+
+        int bestIdx = Integer.MAX_VALUE;
+        Field bestOuter = null;
+        Field bestInner = null;
+
         Class<?> c = controller.getClass();
         while (c != null && c != Object.class) {
-            for (Field outer : c.getDeclaredFields()) {
-                if (outer.getType().isPrimitive()) continue;
-                String n = outer.getType().getName();
-                if (n.startsWith("android.") || n.startsWith("java.") || n.startsWith("androidx.") || n.startsWith("kotlin.")) continue;
-                try { outer.setAccessible(true); } catch (Throwable ignored) { continue; }
+            for (Field outerF : c.getDeclaredFields()) {
+                if (outerF.getType().isPrimitive()) continue;
+                String pkg = outerF.getType().getName();
+                if (pkg.startsWith("android.") || pkg.startsWith("java.")
+                        || pkg.startsWith("androidx.") || pkg.startsWith("kotlin.")) continue;
+                outerF.setAccessible(true);
                 Object nested;
-                try { nested = outer.get(controller); } catch (Throwable ignored) { continue; }
+                try { nested = outerF.get(controller); } catch (Throwable ignored) { continue; }
                 if (nested == null) continue;
-                Field one = null;
-                int count = 0;
+
+                Field singleIntField = null;
+                int intCount = 0;
                 Class<?> nc = nested.getClass();
                 while (nc != null && nc != Object.class) {
-                    String nn = nc.getName();
-                    if (nn.startsWith("android.") || nn.startsWith("java.") || nn.startsWith("androidx.") || nn.startsWith("kotlin.")) break;
-                    for (Field f : nc.getDeclaredFields()) {
-                        if (f.getType() == int.class) {
-                            count++;
-                            one = f;
-                            if (count > 1) break;
-                        }
+                    String npkg = nc.getName();
+                    if (npkg.startsWith("android.") || npkg.startsWith("java.")
+                            || npkg.startsWith("androidx.") || npkg.startsWith("kotlin.")) break;
+                    for (Field nf : nc.getDeclaredFields()) {
+                        if (nf.getType() != int.class) continue;
+                        intCount++;
+                        singleIntField = nf;
+                        if (intCount > 1) break;
                     }
-                    if (count > 1) break;
+                    if (intCount > 1) break;
                     nc = nc.getSuperclass();
                 }
-                if (count == 1 && one != null) {
+
+                if (intCount == 1 && singleIntField != null) {
+                    singleIntField.setAccessible(true);
                     try {
-                        one.setAccessible(true);
-                        int idx = one.getInt(nested);
-                        if (idx >= 0 && idx < 200 && idx < best) {
-                            best = idx;
-                            bestOuter = outer;
-                            bestInner = one;
+                        int idx = singleIntField.getInt(nested);
+                        if (idx >= 0 && idx < 200 && idx < bestIdx) {
+                            bestIdx   = idx;
+                            bestOuter = outerF;
+                            bestInner = singleIntField;
                         }
                     } catch (Throwable ignored) {}
                 }
             }
             c = c.getSuperclass();
         }
+
         if (bestOuter != null) {
             cachedOuterField = bestOuter;
             cachedInnerField = bestInner;
-            return best;
+            return bestIdx;
         }
         return 0;
     }
 
-    static int findCarouselIndexFromView(Context ctx, int size) {
+    /**
+     * Primary index resolver: walks the activity's live view hierarchy for a
+     * ViewPager / ViewPager2 / ReboundViewPager / horizontal RecyclerView whose adapter
+     * item count equals {@code carouselSize} and returns its current data index.
+     * Multiple unrelated carousels can coincidentally share the same item count (e.g.
+     * two feed posts both showing 4 photos) — trusting the first DFS hit in that case
+     * previously misattributed the index to the wrong post. So every match is collected
+     * and the result is only trusted when exactly one candidate matches; otherwise the
+     * caller falls back to the data-layer field.
+     *
+     * @return current position [0, carouselSize), or -1 if not found / ambiguous
+     */
+    static int findCarouselIndexFromView(Context ctx, int carouselSize) {
         if (!(ctx instanceof Activity)) return -1;
         try {
+            View root = ((Activity) ctx).getWindow().getDecorView();
             List<Integer> matches = new java.util.ArrayList<>();
-            collectCarouselMatches(((Activity) ctx).getWindow().getDecorView(), size, matches);
+            collectCarouselMatches(root, carouselSize, matches);
             return matches.size() == 1 ? matches.get(0) : -1;
         } catch (Throwable ignored) {
             return -1;
         }
     }
 
+    /** Returns adapter item count, trying RecyclerView-style then PagerAdapter-style. */
     private static int adapterCount(Object adapter) {
         try { return (int) adapter.getClass().getMethod("getItemCount").invoke(adapter); } catch (Throwable ignored) {}
         try { return (int) adapter.getClass().getMethod("getCount").invoke(adapter); } catch (Throwable ignored) {}
         return -1;
     }
 
-    private static void collectCarouselMatches(View view, int size, List<Integer> out) {
+    /**
+     * Recursive DFS over the view tree, collecting the resolved index of every carousel
+     * whose adapter size matches — does not stop at the first hit. ViewPager / ViewPager2 /
+     * ReboundViewPager are AndroidX / Instagram common-UI classes — stable names, no obfuscation.
+     */
+    private static void collectCarouselMatches(View view, int carouselSize, List<Integer> out) {
         String cn = view.getClass().getName();
+
+        // ViewPager / ViewPager2 / ReboundViewPager and any subclass
         if (cn.contains("ViewPager")) {
             try {
                 Object adapter = view.getClass().getMethod("getAdapter").invoke(view);
-                if (adapter != null && adapterCount(adapter) == size) {
-                    for (String name : new String[]{"getCurrentItem", "getCurrentDataIndex", "getCurrentWrappedDataIndex", "getCurrentRawDataIndex"}) {
+                if (adapter != null && adapterCount(adapter) == carouselSize) {
+                    // Standard pagers: getCurrentItem()
+                    // ReboundViewPager (Instagram looping carousel): getCurrentDataIndex()
+                    for (String getter : new String[]{
+                            "getCurrentItem", "getCurrentDataIndex",
+                            "getCurrentWrappedDataIndex", "getCurrentRawDataIndex"}) {
                         try {
-                            int p = (int) view.getClass().getMethod(name).invoke(view);
-                            if (p >= 0) { out.add(p); break; }
+                            int cur = (int) view.getClass().getMethod(getter).invoke(view);
+                            if (cur >= 0) { out.add(cur); break; }
                         } catch (NoSuchMethodException ignored) {}
                     }
                 }
             } catch (Throwable ignored) {}
         }
+
+        // Horizontal RecyclerView (carousel, not the vertical feed list)
         if (cn.contains("RecyclerView")) {
             try {
                 Object adapter = view.getClass().getMethod("getAdapter").invoke(view);
-                if (adapter != null && adapterCount(adapter) == size) {
+                if (adapter != null && adapterCount(adapter) == carouselSize) {
                     Object lm = view.getClass().getMethod("getLayoutManager").invoke(view);
                     if (lm != null) {
                         try {
                             int orientation = (int) lm.getClass().getMethod("getOrientation").invoke(lm);
-                            if (orientation != 0) lm = null;
+                            if (orientation != 0 /* HORIZONTAL */) lm = null;
                         } catch (Throwable ignored) {}
                         if (lm != null) {
-                            Integer p = null;
-                            try { p = (int) lm.getClass().getMethod("findFirstCompletelyVisibleItemPosition").invoke(lm); } catch (Throwable ignored) {}
-                            if (p == null) try { p = (int) lm.getClass().getMethod("findFirstVisibleItemPosition").invoke(lm); } catch (Throwable ignored) {}
-                            if (p != null && p >= 0) out.add(p);
+                            Integer pos = null;
+                            try {
+                                int p = (int) lm.getClass()
+                                        .getMethod("findFirstCompletelyVisibleItemPosition").invoke(lm);
+                                if (p >= 0) pos = p;
+                            } catch (Throwable ignored) {}
+                            if (pos == null) {
+                                try {
+                                    int p = (int) lm.getClass()
+                                            .getMethod("findFirstVisibleItemPosition").invoke(lm);
+                                    if (p >= 0) pos = p;
+                                } catch (Throwable ignored) {}
+                            }
+                            if (pos != null) out.add(pos);
                         }
                     }
                 }
             } catch (Throwable ignored) {}
         }
+
         if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) collectCarouselMatches(group.getChildAt(i), size, out);
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                collectCarouselMatches(vg.getChildAt(i), carouselSize, out);
+            }
         }
     }
 
-    private static void showReelDownloadChooser(Activity activity, Object media, Object controller) {
-        final String[] options = {"Download Video", "Download Image"};
-        new AlertDialog.Builder(activity)
-                .setTitle("Reel Download")
-                .setItems(options, (dialog, which) -> {
-                    if (which == 0) startReelVideoDownload(activity, media, controller);
-                    else startReelImageDownload(activity, media, controller);
-                })
-                .show();
+    private static void onOptionsBuilt(XC_MethodHook.MethodHookParam param) {
+        try {
+            Object controller  = param.thisObject;
+            Object media       = param.args[0];
+            Object buttonAdder = param.args[1];
+
+            if (activityField == null) {
+                for (Field f : controller.getClass().getDeclaredFields()) {
+                    if (Activity.class.isAssignableFrom(f.getType())) {
+                        f.setAccessible(true);
+                        activityField = f;
+                        break;
+                    }
+                }
+            }
+            if (activityField == null) {
+                ModuleLog.line("(IE|Reel) ❌ no Activity field on controller");
+                return;
+            }
+
+            Activity activity = (Activity) activityField.get(controller);
+            if (activity == null) return;
+
+            if (buttonAdderMethod == null) {
+                for (Method m : buttonAdder.getClass().getDeclaredMethods()) {
+                    Class<?>[] p = m.getParameterTypes();
+                    if (p.length != 4) continue;
+                    if (!Context.class.isAssignableFrom(p[0])) continue;
+                    if (!View.OnClickListener.class.isAssignableFrom(p[1])) continue;
+                    if (p[2] != String.class) continue;
+                    if (p[3] != int.class) continue;
+                    m.setAccessible(true);
+                    buttonAdderMethod = m;
+                    break;
+                }
+            }
+            if (buttonAdderMethod == null) {
+                ModuleLog.line("(IE|Reel) ❌ buttonAdderMethod not found");
+                return;
+            }
+
+            int icon = resolveDownloadIcon(activity);
+            final Activity actCopy      = activity;
+            final Object mediaCopy      = media;
+            final Object controllerCopy = controller;
+
+            buttonAdderMethod.invoke(buttonAdder, activity,
+                    (View.OnClickListener) v -> startReelDownload(actCopy, mediaCopy, controllerCopy),
+                    I18n.t(activity, R.string.ig_dl_title), icon);
+
+            installReelImageOption(buttonAdder, actCopy, mediaCopy, controllerCopy);
+
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|Reel) ❌ onOptionsBuilt: " + t);
+        }
     }
 
-    private static void startReelVideoDownload(Context ctx, Object media, Object controller) {
-        String user = FeedVideoDownloadHook.extractUsernameFromMediaObject(media);
-        if (user == null) user = "reel";
-        String id = "0";
+    private static void startReelDownload(Context ctx, Object media, Object controller) {
+        String username = FeedVideoDownloadHook.extractUsernameFromMediaObject(media);
+        if (username == null) username = "reel";
+
+        String mediaId = "0";
         try {
-            Object x = media.getClass().getMethod("getId").invoke(media);
-            if (x instanceof String && !((String) x).isEmpty()) id = (String) x;
+            Object id = media.getClass().getMethod("getId").invoke(media);
+            if (id instanceof String s && !s.isEmpty()) mediaId = s;
         } catch (Throwable ignored) {}
-        String video = FeedVideoDownloadHook.bestVideoUrlFromMedia(media);
-        if (video != null) {
-            final String fn = FeedVideoDownloadHook.buildFilename(user, "reel", id, true);
-            final String u = video;
-            final String usr = user;
+
+        String videoUrl = FeedVideoDownloadHook.bestVideoUrlFromMedia(media);
+
+        if (videoUrl != null) {
+            final String fn        = FeedVideoDownloadHook.buildFilename(username, "reel", mediaId, true);
+            final String finalUrl  = videoUrl;
+            final String finalUser = username;
             Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading_reel), Toast.LENGTH_SHORT).show();
             FeedVideoDownloadHook.executor.submit(() -> {
                 try {
-                    boolean failed = FeedVideoDownloadHook.downloadAndSave(ctx, u, fn, true, usr);
-                    if (!failed) FeedVideoDownloadHook.mainHandler.post(() ->
-                            Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_saved), Toast.LENGTH_SHORT).show());
+                    boolean delegated = FeedVideoDownloadHook.downloadAndSave(ctx, finalUrl, fn, true, finalUser);
+                    if (!delegated) {
+                        FeedVideoDownloadHook.mainHandler.post(() ->
+                                Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_saved), Toast.LENGTH_SHORT).show());
+                    }
                 } catch (Throwable e) {
                     FeedVideoDownloadHook.mainHandler.post(() ->
                             Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_failed, e.getMessage()), Toast.LENGTH_SHORT).show());
@@ -461,73 +515,61 @@ public class ReelDownloadHook {
             });
             return;
         }
-        List<String> urls = FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx, media);
-        if (urls.isEmpty()) {
+
+        // No direct video — may be a photo carousel reel
+        List<String> allUrls = FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx, media);
+        if (allUrls.isEmpty()) {
             Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_url_not_found), Toast.LENGTH_SHORT).show();
             return;
         }
-        int vi = findCarouselIndexFromView(ctx, urls.size());
-        int idx = vi >= 0 ? vi : findReelCarouselIndex(controller);
-        final String fu = user, fid = id;
-        final int fi = idx;
+
+        // Primary: live view state (always correct). Fallback: data-layer field (stale at slide 0).
+        int viewIndex    = findCarouselIndexFromView(ctx, allUrls.size());
+        int currentIndex = viewIndex >= 0 ? viewIndex : findReelCarouselIndex(controller);
+
+        final String finalUsername = username;
+        final String finalMediaId  = mediaId;
+        final int    finalIndex    = currentIndex;
         FeedVideoDownloadHook.mainHandler.post(() ->
-                FeedVideoDownloadHook.showPostDownloadDialog(ctx, urls, fu, fid, fi));
+                FeedVideoDownloadHook.showPostDownloadDialog(ctx, allUrls, finalUsername, finalMediaId, finalIndex));
+    }
+
+    private static void installReelImageOption(Object buttonAdder, Activity activity, Object media, Object controller) {
+        try {
+            final Activity act=activity; final Object mediaCopy=media; final Object controllerCopy=controller;
+            buttonAdderMethod.invoke(buttonAdder, activity, (View.OnClickListener) v -> startReelImageDownload(act, mediaCopy, controllerCopy), "Reel as Image", resolveDownloadIcon(activity));
+            ModuleLog.line("(IE|Reel) Reel as Image option installed");
+        } catch (Throwable t) { ModuleLog.line("(IE|Reel) Reel as Image unavailable: "+t); }
     }
 
     private static void startReelImageDownload(Context ctx, Object media, Object controller) {
         try {
-            String user = FeedVideoDownloadHook.extractUsernameFromMediaObject(media);
-            if (user == null || user.isEmpty()) user = "reel";
-            String id = "0";
-            try {
-                Object x = media.getClass().getMethod("getId").invoke(media);
-                if (x instanceof String && !((String) x).isEmpty()) id = (String) x;
-            } catch (Throwable ignored) {}
-            String image = FeedVideoDownloadHook.imageUrlFromMedia(ctx, media);
-            if (image == null) {
-                List<String> urls = FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx, media);
-                for (String u : urls) if (isLikelyImageUrl(u)) { image = u; break; }
-            }
-            if (image == null) {
-                Toast.makeText(ctx, "Reel image not available", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            final String url = image;
-            final String fn = FeedVideoDownloadHook.buildFilename(user, "reel_image", id, false);
-            final String usr = user;
-            Toast.makeText(ctx, "Downloading reel image…", Toast.LENGTH_SHORT).show();
-            FeedVideoDownloadHook.executor.submit(() -> {
-                try {
-                    boolean failed = FeedVideoDownloadHook.downloadAndSave(ctx, url, fn, false, usr);
-                    if (!failed) FeedVideoDownloadHook.mainHandler.post(() ->
-                            Toast.makeText(ctx, "Reel image saved", Toast.LENGTH_SHORT).show());
-                } catch (Throwable e) {
-                    FeedVideoDownloadHook.mainHandler.post(() ->
-                            Toast.makeText(ctx, "Reel image failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-                }
-            });
-        } catch (Throwable t) {
-            ModuleLog.line("(IE|Reel) Reel image download failed: " + t);
-        }
+            String username=FeedVideoDownloadHook.extractUsernameFromMediaObject(media); if(username==null||username.isEmpty()) username="reel";
+            String mediaId="0"; try { Object id=media.getClass().getMethod("getId").invoke(media); if(id instanceof String && !((String)id).isEmpty()) mediaId=(String)id; } catch(Throwable ignored) {}
+            List<String> urls=FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx,media);
+            java.util.ArrayList<String> images=new java.util.ArrayList<>(); for(String url:urls) if(isLikelyImageUrl(url)) images.add(url);
+            if(images.isEmpty()){Toast.makeText(ctx,"Reel image not available",Toast.LENGTH_SHORT).show();return;}
+            int index=0; if(images.size()>1){int vi=findCarouselIndexFromView(ctx,images.size()); index=vi>=0?vi:findReelCarouselIndex(controller); if(index<0||index>=images.size()) index=0;}
+            final String url=images.get(index); final String filename=FeedVideoDownloadHook.buildFilename(username,"reel_image",mediaId,false); final String user=username;
+            Toast.makeText(ctx,"Downloading reel image…",Toast.LENGTH_SHORT).show();
+            FeedVideoDownloadHook.executor.submit(()->{try{boolean delegated=FeedVideoDownloadHook.downloadAndSave(ctx,url,filename,false,user); if(!delegated) FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,"Reel image saved",Toast.LENGTH_SHORT).show());}catch(Throwable e){FeedVideoDownloadHook.mainHandler.post(()->Toast.makeText(ctx,"Reel image failed: "+e.getMessage(),Toast.LENGTH_SHORT).show());}});
+        } catch(Throwable t){ModuleLog.line("(IE|Reel) Reel image download failed: "+t);}
     }
 
-    private static boolean isLikelyImageUrl(String url) {
-        if (url == null || url.isEmpty()) return false;
-        String l = url.toLowerCase(java.util.Locale.ROOT);
-        return l.contains("dst-jpg") || l.contains("dst-png") || l.contains("dst-webp")
-                || l.endsWith(".jpg") || l.contains(".jpg?")
-                || l.endsWith(".jpeg") || l.contains(".jpeg?")
-                || l.endsWith(".png") || l.contains(".png?")
-                || l.endsWith(".webp") || l.contains(".webp?");
+    private static boolean isLikelyImageUrl(String url){
+        if(url==null||url.isEmpty()) return false; String l=url.toLowerCase(java.util.Locale.ROOT);
+        return l.contains("dst-jpg")||l.contains("dst-png")||l.contains("dst-webp")||l.endsWith(".jpg")||l.contains(".jpg?")||l.endsWith(".jpeg")||l.contains(".jpeg?")||l.endsWith(".png")||l.contains(".png?")||l.endsWith(".webp")||l.contains(".webp?");
     }
 
+    /** Reads the icon drawable ID from MediaOption$Option.DOWNLOAD enum value. */
     private static int resolveDownloadIcon(Context ctx) {
         try {
-            Class<?> c = ctx.getClassLoader().loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
-            for (Object v : (Object[]) c.getMethod("values").invoke(null)) {
-                if (v.toString().contains("DOWNLOAD")) {
-                    Field f = v.getClass().getField("iconDrawable");
-                    return (int) f.get(v);
+            Class<?> optionClass = ctx.getClassLoader()
+                    .loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
+            for (Object val : (Object[]) optionClass.getMethod("values").invoke(null)) {
+                if (val.toString().contains("DOWNLOAD")) {
+                    Field f = val.getClass().getField("iconDrawable");
+                    return (int) f.get(val);
                 }
             }
         } catch (Throwable ignored) {}

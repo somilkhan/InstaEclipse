@@ -1,121 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/black"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
-    android:paddingTop="8dp"
-    android:paddingBottom="12dp">
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/logging"
-        android:textColor="@color/white"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:letterSpacing="-0.02"
-        android:paddingBottom="10dp" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingBottom="10dp">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/logging_clear"
-            android:layout_width="0dp"
-            android:layout_height="42dp"
-            android:layout_weight="1"
-            android:text="@string/logging_clear"
-            android:textSize="12sp"
-            android:textColor="@color/white"
-            app:cornerRadius="14dp"
-            app:strokeColor="#292929"
-            app:strokeWidth="1dp"
-            app:backgroundTint="@color/dark_gray"
-            app:icon="@drawable/ic_delete"
-            app:iconTint="@color/white" />
-
-        <Space android:layout_width="6dp" android:layout_height="1dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/logging_copy"
-            android:layout_width="0dp"
-            android:layout_height="42dp"
-            android:layout_weight="1"
-            android:text="@string/logging_copy"
-            android:textSize="12sp"
-            android:textColor="@color/white"
-            app:cornerRadius="14dp"
-            app:strokeColor="#292929"
-            app:strokeWidth="1dp"
-            app:backgroundTint="@color/dark_gray"
-            app:icon="@drawable/ic_content_copy"
-            app:iconTint="@color/white" />
-
-        <Space android:layout_width="6dp" android:layout_height="1dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/logging_export"
-            android:layout_width="0dp"
-            android:layout_height="42dp"
-            android:layout_weight="1"
-            android:text="@string/logging_export"
-            android:textSize="12sp"
-            android:textColor="@color/white"
-            app:cornerRadius="14dp"
-            app:strokeColor="#292929"
-            app:strokeWidth="1dp"
-            app:backgroundTint="@color/dark_gray"
-            app:icon="@drawable/ic_download"
-            app:iconTint="@color/white" />
+<LinearLayout android:orientation="vertical" android:background="?colorSurface" android:layout_width="match_parent" android:layout_height="match_parent"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <LinearLayout android:orientation="horizontal" android:paddingTop="12dp" android:paddingBottom="8dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:paddingEnd="16dp">
+        <com.google.android.material.button.MaterialButton android:id="@+id/logging_clear" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/logging_clear" android:layout_weight="1" android:layout_marginEnd="4dp" app:cornerRadius="14dp" app:icon="@drawable/ic_delete" app:iconGravity="textStart" style="@style/Widget.Material3.Button.OutlinedButton.Icon" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/logging_copy" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/logging_copy" android:layout_weight="1" android:layout_marginStart="4dp" android:layout_marginEnd="4dp" app:cornerRadius="14dp" app:icon="@drawable/ic_content_copy" app:iconGravity="textStart" style="@style/Widget.Material3.Button.TonalButton.Icon" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/logging_export" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="4dp" app:cornerRadius="14dp" app:icon="@drawable/ic_download" app:iconGravity="textStart" style="@style/Widget.Material3.Button.TonalButton.Icon" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/logging_line_count"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textSize="11sp"
-        android:textColor="@color/gray"
-        android:paddingStart="4dp"
-        android:paddingBottom="6dp"
-        android:visibility="gone" />
-
-    <com.google.android.material.card.MaterialCardView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        app:cardElevation="0dp"
-        app:cardBackgroundColor="@color/dark_gray"
-        app:cardCornerRadius="18dp"
-        app:strokeColor="#252525"
-        app:strokeWidth="1dp">
-
-        <androidx.core.widget.NestedScrollView
-            android:id="@+id/logging_scroll"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:padding="14dp"
-            android:fillViewport="true"
-            android:scrollbars="vertical">
-
-            <TextView
-                android:id="@+id/logging_content"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/logging_placeholder"
-                android:textSize="11sp"
-                android:textColor="@color/white"
-                android:fontFamily="monospace"
-                android:textIsSelectable="true"
-                android:lineSpacingExtra="2dp" />
+    <TextView android:textSize="11sp" android:textColor="?colorOnSurfaceVariant" android:id="@+id/logging_line_count" android:paddingBottom="4dp" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:paddingEnd="16dp" />
+    <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="0dp" android:layout_marginBottom="12dp" android:layout_weight="1" android:layout_marginStart="16dp" android:layout_marginEnd="16dp" style="@style/SubmenuCard">
+        <androidx.core.widget.NestedScrollView android:id="@+id/logging_scroll" android:padding="12dp" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
+            <TextView android:textSize="11sp" android:textColor="?colorOnSurface" android:id="@+id/logging_content" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/logging_placeholder" android:textIsSelectable="true" android:fontFamily="monospace" />
         </androidx.core.widget.NestedScrollView>
     </com.google.android.material.card.MaterialCardView>
-
 </LinearLayout>

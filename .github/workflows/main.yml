@@ -21,33 +21,14 @@ permissions:
 
 jobs:
   verify:
-    name: Test, lint and build Web Manager APK
+    name: Test, lint and build
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Build Web Manager
-        shell: bash
-        run: |
-          set -euo pipefail
-          bun install --frozen-lockfile
-          bun run lint
-          bun run build
-          test -s dist/index.html
-          test -n "$(find dist/assets -type f -print -quit)"
-          rm -rf app/src/main/assets/web
-          mkdir -p app/src/main/assets/web
-          cp -R dist/. app/src/main/assets/web/
-          test -s app/src/main/assets/web/index.html
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -59,7 +40,7 @@ jobs:
       - name: Set up Android SDK tooling
         uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools
+          packages: platform-tools build-tools;35.0.0 platforms;android-35
 
       - name: Prepare Android SDK
         shell: bash
@@ -73,37 +54,19 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      - name: Run unit tests and lint
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./gradlew :app:testDebugUnitTest :app:lintDebug --no-daemon --stacktrace
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
 
-      - name: Build unsigned Debug APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+      - name: Run Android lint
+        run: ./gradlew lintDebug --stacktrace
 
-      - name: Verify Android APK contains Web Manager
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK=app/build/outputs/apk/debug/app-debug.apk
-          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
-          test -s "$APK"
-          unzip -l "$APK" | grep -q 'assets/web/index.html'
-          unzip -l "$APK" | grep -q 'assets/web/assets/'
-          "$AAPT" dump xmltree "$APK" AndroidManifest.xml > /tmp/manifest.txt
-          grep -q 'ps.reso.instaeclipse.MainActivity' /tmp/manifest.txt
-          PACKAGE=$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p")
-          VERSION=$("$AAPT" dump badging "$APK" | sed -n "s/.*versionName='\\([^']*\\)'.*/\\1/p")
-          EXPECTED_VERSION=$(sed -n "s/^[[:space:]]*versionName[[:space:]]*['\"]\\([^'\"]*\\)['\"].*/\\1/p" app/build.gradle | head -n1)
-          test "$PACKAGE" = "ps.reso.instaeclipse"
-          test "$VERSION" = "$EXPECTED_VERSION"
-          echo "Web Manager Android APK verified; package=$PACKAGE version=$VERSION"
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload Core APK
+      - name: Verify APK exists
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: instaeclipse-debug-${{ github.sha }}

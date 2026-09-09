@@ -44,7 +44,6 @@ public class HomeFragment extends Fragment {
     private TextView instagramVariantText;
     private MaterialButton instagramMultiButton;
     private ImageView instagramLogo, instagramInfoIcon;
-    private TextView targetVariantLabel;
     private String activePackage;
     private List<String> installedPackages;
     private ValueAnimator contributorsAnimator;
@@ -52,15 +51,11 @@ public class HomeFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
         launchInstagramButton = view.findViewById(R.id.launch_instagram_button);
         MaterialButton downloadButton = view.findViewById(R.id.download_instagram_button);
-        MaterialButton bannerDownloadButton = view.findViewById(R.id.banner_download_v2_apk_btn);
-        MaterialButton telegramButton = view.findViewById(R.id.banner_telegram_btn);
-        MaterialButton contactZehenButton = view.findViewById(R.id.contact_zehen_btn);
-        TextView creditsLink = view.findViewById(R.id.full_credits_link);
-        targetVariantLabel = view.findViewById(R.id.target_variant_label);
         MaterialCardView featureHubCard = view.findViewById(R.id.feature_hub_card);
         instagramStatusCard = view.findViewById(R.id.instagram_status_card);
         instagramStatusText = view.findViewById(R.id.instagram_status_text);
@@ -68,18 +63,14 @@ public class HomeFragment extends Fragment {
         instagramMultiButton = view.findViewById(R.id.instagram_multi_button);
         instagramLogo = view.findViewById(R.id.instagram_logo);
         instagramInfoIcon = view.findViewById(R.id.instagram_info_icon);
-
         checkInstagramStatus();
-
-        View.OnClickListener openApkMirror = v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.apkmirror.com/uploads/?appcategory=instagram-instagram")));
-        downloadButton.setOnClickListener(openApkMirror);
-        bannerDownloadButton.setOnClickListener(openApkMirror);
-        telegramButton.setOnClickListener(v -> openLink("https://t.me/InstaEclipsechat"));
-        contactZehenButton.setOnClickListener(v -> openLink("https://t.me/Zehen0i"));
-        creditsLink.setOnClickListener(v -> showCreditsDialog());
-
+        downloadButton.setOnClickListener(v -> {
+            String url = "https://www.apkmirror.com/uploads/?appcategory=instagram-instagram";
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        });
         featureHubCard.setOnClickListener(v -> {
-            v.animate().scaleX(0.98f).scaleY(0.98f).setDuration(70).withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(150).start()).start();
+            v.animate().scaleX(0.98f).scaleY(0.98f).setDuration(70).withEndAction(() ->
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(150).start()).start();
             FeatureHub.show(this);
         });
         setupContributorsAndSpecialThanks(view);
@@ -97,10 +88,10 @@ public class HomeFragment extends Fragment {
         for (String pkg : CommonUtils.SUPPORTED_PACKAGES) { try { pm.getPackageInfo(pkg, 0); installedPackages.add(pkg); } catch (PackageManager.NameNotFoundException ignored) {} }
         if (installedPackages.isEmpty()) {
             instagramStatusText.setText(getString(R.string.not_installed_instagram)); instagramStatusText.setTypeface(null, android.graphics.Typeface.BOLD);
-            instagramStatusCard.setCardBackgroundColor(android.graphics.Color.parseColor("#17171C")); instagramLogo.setImageResource(R.drawable.ic_cancel); launchInstagramButton.setEnabled(false); return;
+            instagramStatusCard.setCardBackgroundColor(getResources().getColor(R.color.dark_red)); instagramLogo.setImageResource(R.drawable.ic_cancel); launchInstagramButton.setEnabled(false); return;
         }
         activePackage = installedPackages.contains(CommonUtils.IG_PACKAGE_NAME) ? CommonUtils.IG_PACKAGE_NAME : installedPackages.get(0);
-        instagramStatusCard.setCardBackgroundColor(android.graphics.Color.parseColor("#121216")); instagramLogo.setImageResource(R.drawable.ic_instagram_logo); instagramVariantText.setVisibility(View.VISIBLE);
+        instagramStatusCard.setCardBackgroundColor(getResources().getColor(R.color.green)); instagramLogo.setImageResource(R.drawable.ic_instagram_logo); instagramVariantText.setVisibility(View.VISIBLE);
         if (installedPackages.size() > 1) { instagramMultiButton.setVisibility(View.VISIBLE); instagramMultiButton.setOnClickListener(v -> showDetectedVersionsDialog(pm)); } else instagramMultiButton.setVisibility(View.GONE);
         bindPackageActions(pm, activePackage);
     }
@@ -115,27 +106,27 @@ public class HomeFragment extends Fragment {
             sp.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, installedText.length(), android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             sp.setSpan(new android.text.style.RelativeSizeSpan(0.85f), installedText.length() + 1, fullText.length(), 0); instagramStatusText.setText(sp);
         } catch (PackageManager.NameNotFoundException e) { instagramStatusText.setText(getString(R.string.installed_instagram_version)); }
-        String label = CommonUtils.getVariantLabel(pkg);
-        instagramVariantText.setText(label);
-        if (targetVariantLabel != null) targetVariantLabel.setText(label);
+        instagramVariantText.setText(CommonUtils.getVariantLabel(pkg));
         instagramInfoIcon.setOnClickListener(v -> { Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS); intent.setData(Uri.parse("package:" + pkg)); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(intent); });
         launchInstagramButton.setOnClickListener(v -> { Intent launchIntent = pm.getLaunchIntentForPackage(pkg); if (launchIntent != null) startActivity(launchIntent); else Toast.makeText(getActivity(), getString(R.string.not_installed_instagram), Toast.LENGTH_SHORT).show(); });
-    }
-
-    private void showCreditsDialog() {
-        new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext()).setTitle("InstaEclipse Credits").setMessage("Zehen — Active Project Continuation Lead\nSomil Khan — Original Founder\n\nThanks to all contributors and patch authors who helped maintain the project.").setPositiveButton("Close", null).show();
     }
 
     private void setupContributorsAndSpecialThanks(View rootView) {
         HorizontalScrollView contributorsScroll = rootView.findViewById(R.id.contributors_scroll); HorizontalScrollView specialThanksScroll = rootView.findViewById(R.id.special_thanks_scroll);
         LinearLayout contributorsContainer = rootView.findViewById(R.id.contributors_container); LinearLayout specialThanksContainer = rootView.findViewById(R.id.special_thanks_container);
         List<Contributor> contributors = Arrays.asList(
-                new Contributor("ReSo7200", "https://github.com/ReSo7200", "https://linkedin.com/in/abdalhaleem-altamimi", null), new Contributor("swakwork", "https://github.com/swakwork", null, null), new Contributor("isma3iloiso", "https://github.com/isma3iloiso", null, null), new Contributor("Placeholder6", "https://github.com/Placeholder6", null, null), new Contributor("frknkrc44", "https://github.com/frknkrc44", null, null), new Contributor("BrianML", "https://github.com/brianml31", null, "https://t.me/instamoon_channel"), new Contributor("silvzr", "https://github.com/silvzr", null, null), new Contributor("oct", "https://github.com/oct888", null, null), new Contributor("HalfManBear", "https://github.com/halfmanbear", null, null), new Contributor("ar5to", "https://github.com/ar5to", null, "https://t.me/ar5to"), new Contributor("particle-box", "https://github.com/particle-box", null, null), new Contributor("rsr", null, null, "https://t.me/rsr1337"));
+                new Contributor("ReSo7200", "https://github.com/ReSo7200", "https://linkedin.com/in/abdalhaleem-altamimi", null), new Contributor("swakwork", "https://github.com/swakwork", null, null),
+                new Contributor("isma3iloiso", "https://github.com/isma3iloiso", null, null), new Contributor("Placeholder6", "https://github.com/Placeholder6", null, null),
+                new Contributor("frknkrc44", "https://github.com/frknkrc44", null, null), new Contributor("BrianML", "https://github.com/brianml31", null, "https://t.me/instamoon_channel"),
+                new Contributor("silvzr", "https://github.com/silvzr", null, null), new Contributor("oct", "https://github.com/oct888", null, null),
+                new Contributor("HalfManBear", "https://github.com/halfmanbear", null, null), new Contributor("ar5to", "https://github.com/ar5to", null, "https://t.me/ar5to"),
+                new Contributor("particle-box", "https://github.com/particle-box", null, null), new Contributor("rsr", null, null, "https://t.me/rsr1337"));
         List<Contributor> specialThanks = Arrays.asList(new Contributor("xHookman", "https://github.com/xHookman", null, null), new Contributor("Bluepapilte", null, null, "https://t.me/instasmashrepo"), new Contributor("BdrcnAYYDIN", null, null, "https://t.me/BdrcnAYYDIN"), new Contributor("Amàzing World", null, null, null));
         inflateCards(contributors, contributorsContainer); inflateCards(specialThanks, specialThanksContainer);
         contributorsContainer.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() { @Override public void onGlobalLayout() { contributorsContainer.getViewTreeObserver().removeOnGlobalLayoutListener(this); int halfWidth = contributorsContainer.getWidth() / 2; contributorsAnimator = buildAnimator(contributorsScroll, halfWidth); if (isResumed()) contributorsAnimator.start(); hookTouchPause(contributorsScroll, contributorsAnimator, halfWidth); } });
         specialThanksContainer.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() { @Override public void onGlobalLayout() { specialThanksContainer.getViewTreeObserver().removeOnGlobalLayoutListener(this); int halfWidth = specialThanksContainer.getWidth() / 2; specialThanksAnimator = buildAnimator(specialThanksScroll, halfWidth); if (isResumed()) specialThanksAnimator.start(); hookTouchPause(specialThanksScroll, specialThanksAnimator, halfWidth); } });
     }
+
     private void inflateCards(List<Contributor> list, LinearLayout container) { for (Contributor c : list) { View v = LayoutInflater.from(getContext()).inflate(R.layout.contributor_card, container, false); setupContributorCard(v, c); container.addView(v); } }
     private ValueAnimator buildAnimator(HorizontalScrollView scrollView, int halfWidth) { float density = getResources().getDisplayMetrics().density; long durationMs = (long) (halfWidth / (SCROLL_SPEED_DP_PER_SEC * density) * 1000f); ValueAnimator anim = ValueAnimator.ofInt(0, halfWidth); anim.setDuration(Math.max(durationMs, 1000)); anim.setRepeatCount(ValueAnimator.INFINITE); anim.setRepeatMode(ValueAnimator.RESTART); anim.setInterpolator(new LinearInterpolator()); anim.addUpdateListener(a -> scrollView.scrollTo((int) a.getAnimatedValue(), 0)); return anim; }
     @SuppressLint("ClickableViewAccessibility") private void hookTouchPause(HorizontalScrollView scrollView, ValueAnimator animator, int halfWidth) { scrollView.setOnTouchListener((v, event) -> { switch (event.getAction()) { case MotionEvent.ACTION_DOWN: case MotionEvent.ACTION_MOVE: if (animator != null && animator.isRunning()) animator.pause(); break; case MotionEvent.ACTION_UP: case MotionEvent.ACTION_CANCEL: if (animator != null && halfWidth > 0) { int currentX = scrollView.getScrollX() % halfWidth; animator.setCurrentFraction(currentX / (float) halfWidth); if (animator.isPaused()) animator.resume(); else if (!animator.isRunning()) animator.start(); } break; } return false; }); }

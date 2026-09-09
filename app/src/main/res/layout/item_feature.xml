@@ -1,7 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/card_view" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="7dp" android:clickable="true" android:focusable="true" android:foreground="?attr/selectableItemBackground" app:cardElevation="0dp" app:cardBackgroundColor="#121216" app:cardCornerRadius="18dp" app:strokeColor="#303037" app:strokeWidth="1dp">
-<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="60dp" android:orientation="horizontal" android:paddingStart="14dp" android:paddingEnd="10dp" android:paddingTop="9dp" android:paddingBottom="9dp" android:gravity="center_vertical">
-<ImageView android:id="@+id/iv_icon" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="11dp" android:padding="8dp" android:scaleType="centerInside" android:visibility="gone" android:contentDescription="@null" app:tint="#E8E8ED" />
-<TextView android:id="@+id/tv_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textColor="#E8E8ED" android:textSize="14sp" android:lineSpacingExtra="2dp" />
-<com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/sw_toggle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:minWidth="48dp" android:minHeight="0dp" android:visibility="gone" app:thumbTint="#F4F4F6" app:trackTint="#3B3B43" />
-</LinearLayout></com.google.android.material.card.MaterialCardView>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_view"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="2dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardElevation="0dp"
+    app:strokeWidth="0dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerLow">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="56dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/iv_icon"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="12dp"
+            android:padding="6dp"
+            android:scaleType="centerInside"
+            android:visibility="gone"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="15sp"
+            android:textColor="?attr/colorOnSurface" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/sw_toggle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:minHeight="0dp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

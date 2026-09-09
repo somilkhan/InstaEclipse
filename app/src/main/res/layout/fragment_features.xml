@@ -3,42 +3,37 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/black">
+    android:background="?attr/colorSurface">
 
     <LinearLayout
         android:id="@+id/header_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="8dp"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="16dp"
         android:paddingBottom="8dp"
+        android:gravity="center_vertical"
         android:layout_alignParentTop="true">
-
-        <TextView
-            android:id="@+id/tv_header_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/features"
-            android:textColor="@color/white"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:letterSpacing="-0.02" />
 
         <ImageButton
             android:id="@+id/btn_back"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_marginStart="8dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_back"
+            android:visibility="gone"
             android:contentDescription="@string/back"
-            android:padding="10dp"
-            android:src="@drawable/ic_back"
-            app:tint="@color/white"
-            android:visibility="gone" />
+            app:tint="?attr/colorPrimary" />
+
+        <TextView
+            android:id="@+id/tv_header_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/features"
+            android:textAppearance="?attr/textAppearanceHeadlineMedium"
+            android:textStyle="bold"
+            android:layout_marginStart="8dp" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -46,12 +41,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/header_layout"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="4dp"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="8dp"
         android:paddingBottom="120dp"
-        android:clipToPadding="false"
-        android:scrollbars="none" />
+        android:clipToPadding="false" />
 
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/fab_save"
@@ -59,15 +52,12 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_alignParentEnd="true"
-        android:layout_marginEnd="20dp"
-        android:layout_marginBottom="20dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="24dp"
         android:text="@string/apply_changes"
-        android:textColor="@color/white"
-        android:visibility="gone"
-        app:backgroundTint="@color/dark_gray"
+        android:textColor="?attr/colorOnPrimaryContainer"
+        app:backgroundTint="?attr/colorPrimaryContainer"
         app:icon="@drawable/ic_save"
-        app:iconTint="@color/white"
-        app:strokeColor="#292929"
-        app:strokeWidth="1dp" />
+        android:visibility="gone" />
 
 </RelativeLayout>

@@ -24,26 +24,33 @@ public class HelpFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
+
+        // Inflate the layout once
         View view = inflater.inflate(R.layout.fragment_help, container, false);
 
+        // Find the GitHub button
         MaterialCardView githubCard = view.findViewById(R.id.github_card);
+
+        // Find the Telegram button
         MaterialCardView telegramCard = view.findViewById(R.id.telegram_card);
+
+        // Find the module not working description TextView
         TextView moduleNotWorkingDescription = view.findViewById(R.id.module_not_working_description);
 
-        moduleNotWorkingDescription.setText(Html.fromHtml(
-                getString(R.string.module_not_working_description), Html.FROM_HTML_MODE_LEGACY));
+        // Set the text with HTML formatting
+        moduleNotWorkingDescription.setText(Html.fromHtml(getString(R.string.module_not_working_description), Html.FROM_HTML_MODE_LEGACY));
         moduleNotWorkingDescription.setMovementMethod(LinkMovementMethod.getInstance());
-        moduleNotWorkingDescription.setLinkTextColor(getResources().getColor(R.color.white));
+        moduleNotWorkingDescription.setLinkTextColor(getResources().getColor(R.color.accent_blue));
 
+        // Set the click listener for the GitHub button
         githubCard.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://github.com/ReSo7200/InstaEclipse"));
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/ReSo7200/InstaEclipse"));
             startActivity(intent);
         });
 
+        // Set the click listener for the Telegram button
         telegramCard.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://t.me/InstaEclipse"));
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/InstaEclipse"));
             startActivity(intent);
         });
 
