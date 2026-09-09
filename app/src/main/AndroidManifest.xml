@@ -49,6 +49,14 @@
         <activity android:name=".mods.devops.config.JsonExportActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
         <activity android:name=".mods.location.LocationPickerActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
         <activity android:name=".ui.theme.ThemeCustomizerActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".utils.plugin.PluginHubActivity" android:exported="false" android:theme="@style/Theme.InstaEclipse" />
+        <activity android:name=".utils.plugin.PluginInstallActivity" android:exported="false" android:theme="@style/Theme.InstaEclipse" />
+        <receiver android:name=".utils.plugin.PluginTransferReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="ps.reso.instaeclipse.ACTION_REQUEST_PENDING_PLUGIN" />
+                <action android:name="ps.reso.instaeclipse.ACTION_PLUGIN_INSTALLED" />
+            </intent-filter>
+        </receiver>
         <service android:name=".mods.media.DownloadSaveService" android:exported="true" android:foregroundServiceType="dataSync" tools:ignore="ExportedService" />
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />

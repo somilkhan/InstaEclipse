@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="logging_export">Export ZIP</string>
+    <string name="logging_export_preparing">Preparing log ZIP…</string>
+    <string name="logging_exported">Log ZIP exported successfully</string>
+    <string name="logging_export_failed_picker">Unable to open the save dialog</string>
+    <string name="logging_export_failed">Log export failed: %1$s</string>
+</resources>
