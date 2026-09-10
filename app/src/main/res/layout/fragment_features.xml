@@ -3,37 +3,41 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:background="@color/v2_bg">
 
+    <!-- Submenu navigation bar (only visible inside a category) -->
     <LinearLayout
         android:id="@+id/header_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="16dp"
-        android:paddingBottom="8dp"
+        android:layout_alignParentTop="true"
         android:gravity="center_vertical"
-        android:layout_alignParentTop="true">
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
 
-        <ImageButton
+        <ImageView
             android:id="@+id/btn_back"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:padding="8dp"
             android:src="@drawable/ic_arrow_back"
-            android:visibility="gone"
-            android:contentDescription="@string/back"
-            app:tint="?attr/colorPrimary" />
+            app:tint="@color/v2_text_primary" />
 
         <TextView
             android:id="@+id/tv_header_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/features"
-            android:textAppearance="?attr/textAppearanceHeadlineMedium"
-            android:textStyle="bold"
-            android:layout_marginStart="8dp" />
+            android:layout_marginStart="8dp"
+            android:text="Category Title"
+            android:textColor="@color/v2_text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -41,23 +45,66 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/header_layout"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="120dp"
-        android:clipToPadding="false" />
+        android:clipToPadding="false"
+        android:paddingTop="6dp"
+        android:paddingBottom="110dp"
+        android:scrollbars="none" />
 
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-        android:id="@+id/fab_save"
-        android:layout_width="wrap_content"
+    <!-- Floating Staged Changes Bar -->
+    <LinearLayout
+        android:id="@+id/layout_staged_bar"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:layout_alignParentEnd="true"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="24dp"
-        android:text="@string/apply_changes"
-        android:textColor="?attr/colorOnPrimaryContainer"
-        app:backgroundTint="?attr/colorPrimaryContainer"
-        app:icon="@drawable/ic_save"
-        android:visibility="gone" />
+        android:layout_marginStart="14dp"
+        android:layout_marginEnd="14dp"
+        android:layout_marginBottom="80dp"
+        android:background="@drawable/bg_v2_card"
+        android:elevation="14dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tv_staged_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="1 unsaved change"
+            android:textColor="@color/v2_text_primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_discard_staged"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_v2_button_glass"
+            android:gravity="center"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="Discard"
+            android:textColor="@color/v2_text_primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_save_staged"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_v2_button_white"
+            android:gravity="center"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="Save Changes"
+            android:textColor="@color/v2_pill_text"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 
 </RelativeLayout>

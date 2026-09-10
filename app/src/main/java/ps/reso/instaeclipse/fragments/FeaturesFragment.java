@@ -55,6 +55,7 @@ import java.util.Scanner;
 
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.mods.location.LocationPickerActivity;
+import ps.reso.instaeclipse.ui.V2Dialogs;
 import ps.reso.instaeclipse.ui.theme.ThemeCustomizerActivity;
 
 public class FeaturesFragment extends Fragment {
@@ -66,6 +67,10 @@ public class FeaturesFragment extends Fragment {
     private TextView tvHeaderTitle;
     private ImageButton btnBack;
     private ExtendedFloatingActionButton fabSave;
+    private View layoutStagedBar;
+    private TextView tvStagedCount;
+    private View btnDiscardStaged;
+    private View btnSaveStaged;
     private ActivityResultLauncher<Uri> dirPickerLauncher;
     private ActivityResultLauncher<String[]> restoreFileLauncher;
     private ActivityResultLauncher<String> notifPermLauncher;
@@ -250,6 +255,18 @@ public class FeaturesFragment extends Fragment {
         btnBack = fragmentView.findViewById(R.id.btn_back);
         fabSave = fragmentView.findViewById(R.id.fab_save);
 
+        layoutStagedBar = fragmentView.findViewById(R.id.layout_staged_bar);
+        tvStagedCount = fragmentView.findViewById(R.id.tv_staged_count);
+        btnDiscardStaged = fragmentView.findViewById(R.id.btn_discard_staged);
+        btnSaveStaged = fragmentView.findViewById(R.id.btn_save_staged);
+
+        if (btnDiscardStaged != null) {
+            btnDiscardStaged.setOnClickListener(v -> discardStagedChanges());
+        }
+        if (btnSaveStaged != null) {
+            btnSaveStaged.setOnClickListener(v -> commitStagedChanges());
+        }
+
         btnBack.setOnClickListener(v -> loadMainMenu());
 
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
@@ -314,13 +331,17 @@ public class FeaturesFragment extends Fragment {
 
     static class ItemViewHolder extends RecyclerView.ViewHolder {
         TextView tvTitle;
+        TextView tvDescription;
         ImageView ivIcon;
+        ImageView ivChevron;
         MaterialSwitch swToggle;
         MaterialCardView cardView;
         ItemViewHolder(View v) {
             super(v);
             tvTitle = v.findViewById(R.id.tv_title);
+            tvDescription = v.findViewById(R.id.tv_description);
             ivIcon = v.findViewById(R.id.iv_icon);
+            ivChevron = v.findViewById(R.id.iv_chevron);
             swToggle = v.findViewById(R.id.sw_toggle);
             cardView = (MaterialCardView) v;
         }
@@ -430,10 +451,12 @@ public class FeaturesFragment extends Fragment {
 
                 if (item.type == FeatureItem.TYPE_CLICKABLE) {
                     itemHolder.swToggle.setVisibility(View.GONE);
+                    if (itemHolder.ivChevron != null) itemHolder.ivChevron.setVisibility(View.VISIBLE);
                     itemHolder.itemView.setOnClickListener(v -> {
                         if (item.onClick != null) item.onClick.run();
                     });
                 } else {
+                    if (itemHolder.ivChevron != null) itemHolder.ivChevron.setVisibility(View.GONE);
                     itemHolder.swToggle.setVisibility(View.VISIBLE);
                     itemHolder.itemView.setOnClickListener(v -> itemHolder.swToggle.toggle());
 
@@ -1193,11 +1216,7 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void showAboutDialog() {
-        new AlertDialog.Builder(requireContext())
-                .setTitle("InstaEclipse 🌘")
-                .setMessage("Created by @reso7200\n\nGitHub: https://github.com/ReSo7200/InstaEclipse\nTelegram: https://t.me/InstaEclipse")
-                .setPositiveButton("Close", null)
-                .show();
+        V2Dialogs.showAboutDialog(requireContext());
     }
 
     // =========================================================
@@ -1211,11 +1230,32 @@ public class FeaturesFragment extends Fragment {
             stagedChanges.put(prefKey, isChecked);
         }
 
+        updateStagedBar();
+    }
+
+    private void updateStagedBar() {
         if (stagedChanges.isEmpty()) {
-            fabSave.hide();
+            if (fabSave != null) fabSave.hide();
+            if (layoutStagedBar != null) layoutStagedBar.setVisibility(View.GONE);
         } else {
-            fabSave.show();
+            if (fabSave != null) fabSave.show();
+            if (layoutStagedBar != null) {
+                layoutStagedBar.setVisibility(View.VISIBLE);
+                if (tvStagedCount != null) {
+                    int count = stagedChanges.size();
+                    tvStagedCount.setText(count + (count == 1 ? " unsaved change" : " unsaved changes"));
+                }
+            }
         }
+    }
+
+    private void discardStagedChanges() {
+        stagedChanges.clear();
+        updateStagedBar();
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
+        Toast.makeText(requireContext(), "Staged changes discarded", Toast.LENGTH_SHORT).show();
     }
 
     private void commitStagedChanges() {
@@ -1235,8 +1275,26 @@ public class FeaturesFragment extends Fragment {
         }
         editor.apply();
         stagedChanges.clear();
-        fabSave.hide();
+        updateStagedBar();
         Toast.makeText(requireContext(), getString(R.string.ig_toast_settings_applied), Toast.LENGTH_SHORT).show();
+    }
+
+    public void openCategory(int categoryId) {
+        switch (categoryId) {
+            case 0: loadDevMenu(); break;
+            case 1: loadGhostMenu(); break;
+            case 2: loadQuickTogglesMenu(); break;
+            case 3: loadAdsMenu(); break;
+            case 4: loadCleanFeedMenu(); break;
+            case 5: loadDistractionMenu(); break;
+            case 6: loadMiscMenu(); break;
+            case 7: loadDownloaderMenu(); break;
+            case 8: loadProfileMenu(); break;
+            case 9: loadLocationMenu(); break;
+            case 10: loadQualityMenu(); break;
+            case 11: loadThemeMenu(); break;
+            default: loadMainMenu(); break;
+        }
     }
 
     private boolean getCurrentState(String prefKey) {

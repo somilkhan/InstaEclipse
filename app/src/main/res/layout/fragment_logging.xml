@@ -1,15 +1,187 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:background="?colorSurface" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <LinearLayout android:orientation="horizontal" android:paddingTop="12dp" android:paddingBottom="8dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:paddingEnd="16dp">
-        <com.google.android.material.button.MaterialButton android:id="@+id/logging_clear" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/logging_clear" android:layout_weight="1" android:layout_marginEnd="4dp" app:cornerRadius="14dp" app:icon="@drawable/ic_delete" app:iconGravity="textStart" style="@style/Widget.Material3.Button.OutlinedButton.Icon" />
-        <com.google.android.material.button.MaterialButton android:id="@+id/logging_copy" android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/logging_copy" android:layout_weight="1" android:layout_marginStart="4dp" android:layout_marginEnd="4dp" app:cornerRadius="14dp" app:icon="@drawable/ic_content_copy" app:iconGravity="textStart" style="@style/Widget.Material3.Button.TonalButton.Icon" />
-        <com.google.android.material.button.MaterialButton android:id="@+id/logging_export" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="4dp" app:cornerRadius="14dp" app:icon="@drawable/ic_download" app:iconGravity="textStart" style="@style/Widget.Material3.Button.TonalButton.Icon" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/v2_bg"
+    android:orientation="vertical"
+    android:paddingTop="6dp">
+
+    <!-- Top Action Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="10dp">
+
+        <TextView
+            android:id="@+id/logging_line_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="System Logs (0)"
+            android:textColor="@color/v2_text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/logging_clear"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_v2_button_glass"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="Clear"
+            android:textColor="@color/v2_text_primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/logging_export"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_v2_button_white"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="Export Logs"
+            android:textColor="@color/v2_pill_text"
+            android:textSize="12sp"
+            android:textStyle="bold" />
     </LinearLayout>
-    <TextView android:textSize="11sp" android:textColor="?colorOnSurfaceVariant" android:id="@+id/logging_line_count" android:paddingBottom="4dp" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:paddingEnd="16dp" />
-    <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="0dp" android:layout_marginBottom="12dp" android:layout_weight="1" android:layout_marginStart="16dp" android:layout_marginEnd="16dp" style="@style/SubmenuCard">
-        <androidx.core.widget.NestedScrollView android:id="@+id/logging_scroll" android:padding="12dp" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
-            <TextView android:textSize="11sp" android:textColor="?colorOnSurface" android:id="@+id/logging_content" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/logging_placeholder" android:textIsSelectable="true" android:fontFamily="monospace" />
+
+    <!-- Tag Filter Chips -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:clipToPadding="false"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/layout_filter_tags"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tag_all"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_v2_pill_white"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="ALL"
+                android:textColor="@color/v2_pill_text"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tag_hook"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_v2_pill_glass"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="HOOK"
+                android:textColor="@color/v2_text_secondary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tag_dexkit"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_v2_pill_glass"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="DEXKIT"
+                android:textColor="@color/v2_text_secondary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tag_sync"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_v2_pill_glass"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="SYNC"
+                android:textColor="@color/v2_text_secondary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tag_settings"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_v2_pill_glass"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="SETTINGS"
+                android:textColor="@color/v2_text_secondary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tag_error"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_v2_pill_glass"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="ERROR"
+                android:textColor="@color/v2_text_secondary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Log Console Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginBottom="90dp"
+        android:layout_weight="1"
+        android:background="@drawable/bg_v2_card"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/logging_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:scrollbars="vertical">
+
+            <TextView
+                android:id="@+id/logging_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/logging_placeholder"
+                android:textColor="@color/v2_text_primary"
+                android:textIsSelectable="true"
+                android:textSize="11sp" />
         </androidx.core.widget.NestedScrollView>
-    </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
 </LinearLayout>

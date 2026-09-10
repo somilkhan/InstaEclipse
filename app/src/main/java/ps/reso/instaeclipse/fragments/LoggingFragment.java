@@ -66,16 +66,85 @@ public class LoggingFragment extends Fragment {
         return inflater.inflate(R.layout.fragment_logging, container, false);
     }
 
+    private String currentTagFilter = "ALL";
+    private TextView tagAll, tagHook, tagDexkit, tagSync, tagSettings, tagError;
+
     @Override public void onViewCreated(@NonNull View view, @Nullable Bundle state) {
         super.onViewCreated(view, state);
         contentView = view.findViewById(R.id.logging_content);
         lineCountView = view.findViewById(R.id.logging_line_count);
         TextView export = view.findViewById(R.id.logging_export);
-        export.setText("Export ZIP");
-        export.setContentDescription("Save logs as ZIP");
-        export.setOnClickListener(v -> exportLogs());
-        view.findViewById(R.id.logging_copy).setOnClickListener(v -> copyLogs());
-        view.findViewById(R.id.logging_clear).setOnClickListener(v -> clearLogs());
+        if (export != null) {
+            export.setText("Export ZIP");
+            export.setContentDescription("Save logs as ZIP");
+            export.setOnClickListener(v -> exportLogs());
+        }
+        View copyBtn = view.findViewById(R.id.logging_copy);
+        if (copyBtn != null) {
+            copyBtn.setOnClickListener(v -> copyLogs());
+        }
+        View clearBtn = view.findViewById(R.id.logging_clear);
+        if (clearBtn != null) {
+            clearBtn.setOnClickListener(v -> clearLogs());
+        }
+
+        tagAll = view.findViewById(R.id.tag_all);
+        tagHook = view.findViewById(R.id.tag_hook);
+        tagDexkit = view.findViewById(R.id.tag_dexkit);
+        tagSync = view.findViewById(R.id.tag_sync);
+        tagSettings = view.findViewById(R.id.tag_settings);
+        tagError = view.findViewById(R.id.tag_error);
+
+        if (tagAll != null) tagAll.setOnClickListener(v -> setTagFilter("ALL"));
+        if (tagHook != null) tagHook.setOnClickListener(v -> setTagFilter("HOOK"));
+        if (tagDexkit != null) tagDexkit.setOnClickListener(v -> setTagFilter("DEXKIT"));
+        if (tagSync != null) tagSync.setOnClickListener(v -> setTagFilter("SYNC"));
+        if (tagSettings != null) tagSettings.setOnClickListener(v -> setTagFilter("SETTINGS"));
+        if (tagError != null) tagError.setOnClickListener(v -> setTagFilter("ERROR"));
+    }
+
+    private void setTagFilter(String tag) {
+        currentTagFilter = tag;
+        updateTagStyles();
+        applyFilter();
+    }
+
+    private void updateTagStyles() {
+        applyTagPillStyle(tagAll, "ALL".equals(currentTagFilter));
+        applyTagPillStyle(tagHook, "HOOK".equals(currentTagFilter));
+        applyTagPillStyle(tagDexkit, "DEXKIT".equals(currentTagFilter));
+        applyTagPillStyle(tagSync, "SYNC".equals(currentTagFilter));
+        applyTagPillStyle(tagSettings, "SETTINGS".equals(currentTagFilter));
+        applyTagPillStyle(tagError, "ERROR".equals(currentTagFilter));
+    }
+
+    private void applyTagPillStyle(TextView tv, boolean active) {
+        if (tv == null) return;
+        if (active) {
+            tv.setBackgroundResource(R.drawable.bg_v2_pill_white);
+            tv.setTextColor(ContextCompat.getColor(requireContext(), R.color.v2_pill_text));
+        } else {
+            tv.setBackgroundResource(R.drawable.bg_v2_pill_glass);
+            tv.setTextColor(ContextCompat.getColor(requireContext(), R.color.v2_text_secondary));
+        }
+    }
+
+    private void applyFilter() {
+        if (contentView == null || fullLogs == null) return;
+        if ("ALL".equals(currentTagFilter) || currentTagFilter == null) {
+            renderLogs(fullLogs);
+            return;
+        }
+
+        String filterLower = currentTagFilter.toLowerCase();
+        StringBuilder filtered = new StringBuilder();
+        String[] lines = fullLogs.split("\n");
+        for (String line : lines) {
+            if (line.toLowerCase().contains(filterLower) || line.startsWith("===")) {
+                filtered.append(line).append("\n");
+            }
+        }
+        renderLogs(filtered.toString());
     }
 
     @Override public void onResume() {
@@ -187,16 +256,20 @@ public class LoggingFragment extends Fragment {
     private void showCombined(String text) {
         if (contentView == null) return;
         fullLogs = text == null ? "" : text;
-        String display = fullLogs;
+        applyFilter();
+    }
+
+    private void renderLogs(String text) {
+        if (contentView == null) return;
+        String display = text == null ? "" : text;
         if (display.length() > MAX_DISPLAY_CHARS) {
-            // Show the newest entries; older entries are still preserved in fullLogs for Copy/Export.
             display = "[Showing latest logs — full logs are retained for Copy/Export]\n\n"
                     + display.substring(display.length() - MAX_DISPLAY_CHARS);
         }
         contentView.setText(display);
         if (lineCountView == null) return;
         int lines = 1;
-        for (int i = 0; i < fullLogs.length(); i++) if (fullLogs.charAt(i) == '\n') lines++;
+        for (int i = 0; i < display.length(); i++) if (display.charAt(i) == '\n') lines++;
         lineCountView.setVisibility(View.VISIBLE);
         lineCountView.setText(getString(R.string.logging_lines_format, lines));
     }

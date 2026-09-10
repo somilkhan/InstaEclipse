@@ -1,22 +1,25 @@
 package ps.reso.instaeclipse.fragments;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
-import android.text.Html;
-import android.text.method.LinkMovementMethod;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
-import com.google.android.material.card.MaterialCardView;
-
+import ps.reso.instaeclipse.BuildConfig;
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.utils.core.CommonUtils;
 
 public class HelpFragment extends Fragment {
 
@@ -24,36 +27,92 @@ public class HelpFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
-
-        // Inflate the layout once
         View view = inflater.inflate(R.layout.fragment_help, container, false);
 
-        // Find the GitHub button
-        MaterialCardView githubCard = view.findViewById(R.id.github_card);
+        // Setup FAQ Accordions
+        setupFaq(view.findViewById(R.id.faq_item_1), view.findViewById(R.id.faq_answer_1), view.findViewById(R.id.faq_icon_1));
+        setupFaq(view.findViewById(R.id.faq_item_2), view.findViewById(R.id.faq_answer_2), view.findViewById(R.id.faq_icon_2));
+        setupFaq(view.findViewById(R.id.faq_item_3), view.findViewById(R.id.faq_answer_3), view.findViewById(R.id.faq_icon_3));
+        setupFaq(view.findViewById(R.id.faq_item_4), view.findViewById(R.id.faq_answer_4), view.findViewById(R.id.faq_icon_4));
 
-        // Find the Telegram button
-        MaterialCardView telegramCard = view.findViewById(R.id.telegram_card);
+        // Support Links
+        View btnTelegram = view.findViewById(R.id.btn_support_telegram);
+        if (btnTelegram != null) {
+            btnTelegram.setOnClickListener(v -> openUrl("https://t.me/InstaEclipsechat"));
+        }
 
-        // Find the module not working description TextView
-        TextView moduleNotWorkingDescription = view.findViewById(R.id.module_not_working_description);
+        View btnZehen = view.findViewById(R.id.btn_support_zehen);
+        if (btnZehen != null) {
+            btnZehen.setOnClickListener(v -> openUrl("https://t.me/Zehen0i"));
+        }
 
-        // Set the text with HTML formatting
-        moduleNotWorkingDescription.setText(Html.fromHtml(getString(R.string.module_not_working_description), Html.FROM_HTML_MODE_LEGACY));
-        moduleNotWorkingDescription.setMovementMethod(LinkMovementMethod.getInstance());
-        moduleNotWorkingDescription.setLinkTextColor(getResources().getColor(R.color.accent_blue));
+        View btnGithub = view.findViewById(R.id.btn_support_github);
+        if (btnGithub != null) {
+            btnGithub.setOnClickListener(v -> openUrl("https://github.com/somilkhan/InstaEclipse"));
+        }
 
-        // Set the click listener for the GitHub button
-        githubCard.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/ReSo7200/InstaEclipse"));
-            startActivity(intent);
-        });
+        // Diagnostics
+        TextView tvAppVersion = view.findViewById(R.id.info_app_version);
+        if (tvAppVersion != null) {
+            tvAppVersion.setText(BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")");
+        }
 
-        // Set the click listener for the Telegram button
-        telegramCard.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/InstaEclipse"));
-            startActivity(intent);
-        });
+        TextView tvTargetIg = view.findViewById(R.id.info_target_ig);
+        if (tvTargetIg != null) {
+            Context ctx = getContext();
+            String installedPkg = findInstagramPackage(ctx);
+            if (installedPkg != null) {
+                try {
+                    PackageInfo pInfo = ctx.getPackageManager().getPackageInfo(installedPkg, 0);
+                    tvTargetIg.setText(installedPkg + " (" + pInfo.versionName + ")");
+                } catch (Exception e) {
+                    tvTargetIg.setText(installedPkg);
+                }
+            } else {
+                tvTargetIg.setText("Not Installed");
+            }
+        }
+
+        TextView tvAndroidEnv = view.findViewById(R.id.info_android_env);
+        if (tvAndroidEnv != null) {
+            tvAndroidEnv.setText("Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
+        }
+
+        TextView tvDeviceModel = view.findViewById(R.id.info_device_model);
+        if (tvDeviceModel != null) {
+            tvDeviceModel.setText(Build.MANUFACTURER + " " + Build.MODEL);
+        }
 
         return view;
+    }
+
+    private void setupFaq(View item, View answer, ImageView icon) {
+        if (item == null || answer == null) return;
+        item.setOnClickListener(v -> {
+            boolean isVisible = answer.getVisibility() == View.VISIBLE;
+            answer.setVisibility(isVisible ? View.GONE : View.VISIBLE);
+            if (icon != null) {
+                icon.animate().rotation(isVisible ? 0f : 90f).setDuration(200).start();
+            }
+        });
+    }
+
+    private void openUrl(String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            startActivity(intent);
+        } catch (Exception ignored) {}
+    }
+
+    private static String findInstagramPackage(Context ctx) {
+        if (ctx == null) return null;
+        PackageManager pm = ctx.getPackageManager();
+        for (String pkg : CommonUtils.SUPPORTED_PACKAGES) {
+            try {
+                pm.getPackageInfo(pkg, 0);
+                return pkg;
+            } catch (PackageManager.NameNotFoundException ignored) {}
+        }
+        return null;
     }
 }

@@ -3,10 +3,27 @@ package ps.reso.instaeclipse;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.WindowCompat;
+import androidx.fragment.app.Fragment;
+
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+
+import ps.reso.instaeclipse.fragments.FeaturesFragment;
+import ps.reso.instaeclipse.fragments.HelpFragment;
+import ps.reso.instaeclipse.fragments.HomeFragment;
+import ps.reso.instaeclipse.fragments.LoggingFragment;
+import ps.reso.instaeclipse.ui.V2Dialogs;
 import ps.reso.instaeclipse.utils.log.Logging;
 import ps.reso.instaeclipse.utils.version.VersionCheckUtility;
 
@@ -15,19 +32,109 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS = "instaeclipse_setup";
     private static final String KEY_STORAGE_PROMPTED = "storage_permission_prompted";
 
+    private BottomNavigationView bottomNavigation;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         super.onCreate(savedInstanceState);
         Logging.init(this, "instaeclipse_companion.log");
         VersionCheckUtility.checkForUpdates(this);
+        setContentView(R.layout.activity_main);
         requestLegacyStoragePermissionOnFirstLaunch();
 
-        // The React/Web Manager is the current primary UI. Keep MainActivity as the
-        // launcher entry point so existing installs retain their component identity,
-        // then hand off immediately to the modern interface.
-        startActivity(new Intent(this, WebUiActivity.class));
-        finish();
+        Toolbar toolbar = findViewById(R.id.top_app_bar);
+        setSupportActionBar(toolbar);
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayShowTitleEnabled(false);
+        }
+
+        TextView toolbarVersion = findViewById(R.id.toolbar_version_badge);
+        if (toolbarVersion != null) {
+            toolbarVersion.setText("v" + BuildConfig.VERSION_NAME);
+        }
+
+        ImageView actionTelegram = findViewById(R.id.action_telegram);
+        if (actionTelegram != null) {
+            actionTelegram.setOnClickListener(v -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/InstaEclipse")));
+                } catch (Exception ignored) {}
+            });
+        }
+
+        ImageView actionUpdate = findViewById(R.id.action_update);
+        if (actionUpdate != null) {
+            actionUpdate.setOnClickListener(v -> VersionCheckUtility.checkForUpdates(this));
+        }
+
+        ImageView actionAbout = findViewById(R.id.action_about);
+        if (actionAbout != null) {
+            actionAbout.setOnClickListener(v -> V2Dialogs.showAboutDialog(this));
+        }
+
+        bottomNavigation = findViewById(R.id.bottom_navigation);
+        FrameLayout fragmentContainer = findViewById(R.id.fragment_container);
+        if (bottomNavigation != null && fragmentContainer != null) {
+            bottomNavigation.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+                int navHeight = v.getHeight();
+                int bottomPadding = navHeight + dp(16);
+                if (fragmentContainer.getPaddingBottom() != bottomPadding) {
+                    fragmentContainer.setPadding(dp(12), 0, dp(12), bottomPadding);
+                }
+            });
+        }
+
+        if (savedInstanceState == null) {
+            getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.fragment_container, new HomeFragment())
+                    .commit();
+        }
+
+        if (bottomNavigation != null) {
+            bottomNavigation.setSelectedItemId(R.id.nav_home);
+            bottomNavigation.setOnItemSelectedListener(item -> {
+                Fragment selectedFragment = null;
+                int itemId = item.getItemId();
+                if (itemId == R.id.nav_home) {
+                    selectedFragment = new HomeFragment();
+                } else if (itemId == R.id.nav_features) {
+                    selectedFragment = new FeaturesFragment();
+                } else if (itemId == R.id.nav_logs) {
+                    selectedFragment = new LoggingFragment();
+                } else if (itemId == R.id.nav_help) {
+                    selectedFragment = new HelpFragment();
+                }
+                if (selectedFragment != null) {
+                    getSupportFragmentManager().beginTransaction()
+                            .setReorderingAllowed(true)
+                            .replace(R.id.fragment_container, selectedFragment)
+                            .commit();
+                }
+                return true;
+            });
+        }
+    }
+
+    public void navigateToFeatures(int categoryId) {
+        if (bottomNavigation != null) {
+            bottomNavigation.setSelectedItemId(R.id.nav_features);
+        }
+        FeaturesFragment fragment = new FeaturesFragment();
+        getSupportFragmentManager().beginTransaction()
+                .setReorderingAllowed(true)
+                .replace(R.id.fragment_container, fragment)
+                .runOnCommit(() -> {
+                    if (categoryId >= 0) {
+                        fragment.openCategory(categoryId);
+                    }
+                })
+                .commit();
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     private void requestLegacyStoragePermissionOnFirstLaunch() {

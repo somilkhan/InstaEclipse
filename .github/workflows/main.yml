@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   verify:
-    name: Test, lint and build Web Manager APK
+    name: Test, lint and build Native Android v2 APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -29,27 +29,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Build Web Manager
-        shell: bash
-        run: |
-          set -euo pipefail
-          bun install --frozen-lockfile
-          bun run lint
-          bun run build
-          test -s dist/index.html
-          test -n "$(find dist/assets -type f -print -quit)"
-          rm -rf app/src/main/assets/web app/src/main/assets/www
-          mkdir -p app/src/main/assets/web app/src/main/assets/www
-          cp -R dist/. app/src/main/assets/web/
-          cp -R dist/. app/src/main/assets/www/
-          test -s app/src/main/assets/web/index.html
-          test -s app/src/main/assets/www/index.html
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -75,30 +54,6 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      - name: Apply Java API compatibility repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          logging='app/src/main/java/ps/reso/instaeclipse/utils/log/Logging.java'
-          downloader='app/src/main/java/ps/reso/instaeclipse/mods/media/FeedVideoDownloadHook.java'
-
-          grep -q 'public static void i(String tag, String message)' "$logging"
-          grep -q 'public static void e(String tag, String message, Throwable throwable)' "$logging"
-
-          python3 - "$downloader" <<'PY'
-          from pathlib import Path
-          import sys
-          path = Path(sys.argv[1])
-          text = path.read_text()
-          old = '    static boolean downloadAndSave(Context ctx, String url, String filename,\n'
-          new = '    public static boolean downloadAndSave(Context ctx, String url, String filename,\n'
-          if old not in text:
-              if new in text:
-                  raise SystemExit(0)
-              raise SystemExit('Expected downloadAndSave declaration not found')
-          path.write_text(text.replace(old, new, 1))
-          PY
-
       - name: Run unit tests
         shell: bash
         run: |
@@ -117,15 +72,13 @@ jobs:
           set -euo pipefail
           ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Verify Android APK contains Web Manager
+      - name: Verify Native Android v2 APK
         shell: bash
         run: |
           set -euo pipefail
           APK=app/build/outputs/apk/debug/app-debug.apk
           AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           test -s "$APK"
-          unzip -l "$APK" | grep -q 'assets/web/index.html'
-          unzip -l "$APK" | grep -q 'assets/web/assets/'
           "$AAPT" dump xmltree "$APK" AndroidManifest.xml > /tmp/manifest.txt
           grep -q 'ps.reso.instaeclipse.MainActivity' /tmp/manifest.txt
           PACKAGE=$("$AAPT" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p")
@@ -133,7 +86,7 @@ jobs:
           EXPECTED_VERSION=$(sed -n "s/^[[:space:]]*versionName[[:space:]]*['\"]\\([^'\"]*\\)['\"].*/\\1/p" app/build.gradle | head -n1)
           test "$PACKAGE" = "ps.reso.instaeclipse"
           test "$VERSION" = "$EXPECTED_VERSION"
-          echo "Web Manager Android APK verified; package=$PACKAGE version=$VERSION"
+          echo "InstaEclipse Native v2 APK verified; package=$PACKAGE version=$VERSION"
 
       - name: Upload Core APK
         uses: actions/upload-artifact@v4

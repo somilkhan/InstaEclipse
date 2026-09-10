@@ -1,19 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#121212</color>
+    <color name="black">#070709</color>
     <color name="red">#FF0000</color>
     <color name="dark_red">#C3172D</color>
     <color name="dark_gray">#1E1E1E</color>
     <color name="gray">#3C3C3C</color>
     <color name="white">#FFFFFF</color>
-    <color name="accent_blue">#448AFF</color>
+    <color name="accent_blue">#FFFFFF</color>
     <color name="warning_yellow">#FFCA28</color>
     <color name="green">#4CAF50</color>
     <color name="dark_green">#21C063</color>
 
+    <!-- v2 Monochrome Glass Theme Colors -->
+    <color name="v2_bg">#070709</color>
+    <color name="v2_surface">#111116</color>
+    <color name="v2_surface_variant">#181820</color>
+    <color name="v2_surface_subtle">#1F1F2A</color>
+    <color name="v2_stroke">#262630</color>
+    <color name="v2_stroke_highlight">#3E3E4E</color>
+    <color name="v2_text_primary">#FFFFFF</color>
+    <color name="v2_text_secondary">#A1A1AA</color>
+    <color name="v2_text_tertiary">#71717A</color>
+    <color name="v2_accent">#FFFFFF</color>
+    <color name="v2_pill_bg">#FFFFFF</color>
+    <color name="v2_pill_text">#09090B</color>
+    <color name="v2_switch_thumb_off">#71717A</color>
+    <color name="v2_switch_thumb_on">#09090B</color>
+    <color name="v2_switch_track_off">#27272A</color>
+    <color name="v2_switch_track_on">#FFFFFF</color>
+
+    <!-- Log Tag Colors -->
+    <color name="tag_hook">#E4E4E7</color>
+    <color name="tag_dexkit">#C084FC</color>
+    <color name="tag_sync">#38BDF8</color>
+    <color name="tag_settings">#4ADE80</color>
+    <color name="tag_info">#60A5FA</color>
+    <color name="tag_error">#F87171</color>
 
     <!-- Bottom Navigation Colors -->
-    <color name="bottom_nav_icon">#B0BEC5</color>
-    <color name="bottom_nav_icon_active">#448AFF</color>
+    <color name="bottom_nav_icon">#71717A</color>
+    <color name="bottom_nav_icon_active">#FFFFFF</color>
     <color name="purple_200">#9C27B0</color>
 </resources>

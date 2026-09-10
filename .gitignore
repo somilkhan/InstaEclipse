@@ -18,3 +18,9 @@ local.properties
 /app/debug
 /.claude
 /APK
+node_modules/
+dist/
+.build-outputs/
+*.keystore
+*.jks
+debug.keystore.base64

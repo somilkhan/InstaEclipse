@@ -44,7 +44,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".WebUiActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name=".mods.devops.config.JsonImportActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
         <activity android:name=".mods.devops.config.JsonExportActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
         <activity android:name=".mods.location.LocationPickerActivity" android:exported="true" android:theme="@style/Theme.InstaEclipse" />
