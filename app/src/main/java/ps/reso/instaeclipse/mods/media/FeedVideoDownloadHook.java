@@ -1644,7 +1644,7 @@ public class FeedVideoDownloadHook {
      *
      * @return {@code true} when delegated (async — service shows its own toast).
      */
-    static boolean downloadAndSave(Context ctx, String url, String filename,
+    public static boolean downloadAndSave(Context ctx, String url, String filename,
                                    boolean isVideo, String username) throws Exception {
         // Prefer FeatureFlags (live value synced from companion via broadcast).
         // Fall back to reading companion cache directly (missed-broadcast / cold-start case).

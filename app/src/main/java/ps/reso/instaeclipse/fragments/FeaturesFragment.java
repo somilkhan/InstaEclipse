@@ -281,7 +281,9 @@ public class FeaturesFragment extends Fragment {
             }
         });
 
-        fabSave.setOnClickListener(v -> commitStagedChanges());
+        if (fabSave != null) {
+            fabSave.setOnClickListener(v -> commitStagedChanges());
+        }
 
         loadMainMenu();
 

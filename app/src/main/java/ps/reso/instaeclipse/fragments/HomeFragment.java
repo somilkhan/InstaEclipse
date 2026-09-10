@@ -19,6 +19,8 @@ import androidx.fragment.app.Fragment;
 
 import ps.reso.instaeclipse.MainActivity;
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.mods.devops.config.JsonExportActivity;
+import ps.reso.instaeclipse.mods.devops.config.JsonImportActivity;
 import ps.reso.instaeclipse.ui.V2Dialogs;
 import ps.reso.instaeclipse.ui.theme.ThemeCustomizerActivity;
 
@@ -153,10 +155,9 @@ public class HomeFragment extends Fragment {
         if (actionBackup != null) {
             actionBackup.setOnClickListener(v -> {
                 try {
-                    Class<?> exportClass = Class.forName("ps.reso.instaeclipse.mods.misc.JsonExportActivity");
-                    startActivity(new Intent(requireContext(), exportClass));
+                    startActivity(new Intent(requireContext(), JsonExportActivity.class));
                 } catch (Throwable t) {
-                    Toast.makeText(requireContext(), "Backup feature initialized", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), "Failed to open Backup settings", Toast.LENGTH_SHORT).show();
                 }
             });
         }
@@ -165,10 +166,9 @@ public class HomeFragment extends Fragment {
         if (actionRestore != null) {
             actionRestore.setOnClickListener(v -> {
                 try {
-                    Class<?> importClass = Class.forName("ps.reso.instaeclipse.mods.misc.JsonImportActivity");
-                    startActivity(new Intent(requireContext(), importClass));
+                    startActivity(new Intent(requireContext(), JsonImportActivity.class));
                 } catch (Throwable t) {
-                    Toast.makeText(requireContext(), "Restore feature initialized", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), "Failed to open Restore settings", Toast.LENGTH_SHORT).show();
                 }
             });
         }

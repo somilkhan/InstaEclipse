@@ -42,6 +42,20 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/logging_copy"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_v2_button_glass"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="Copy"
+            android:textColor="@color/v2_text_primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
             android:id="@+id/logging_export"
             android:layout_width="wrap_content"
             android:layout_height="36dp"
