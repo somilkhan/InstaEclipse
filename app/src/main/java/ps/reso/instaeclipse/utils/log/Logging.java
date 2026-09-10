@@ -26,11 +26,6 @@ import java.util.Locale;
 public final class Logging {
 
     private static final long FLUSH_DELAY_MS = 750;
-    // Broadcast extras ride the Binder transaction buffer (~1MB total, shared across all
-    // in-flight transactions in the process), and Java strings are UTF-16 (2 bytes/char), so
-    // this must stay well under half a million chars or the reply broadcast triggers
-    // TransactionTooLargeException -> the receiving process gets killed with
-    // CannotDeliverBroadcastException instead of ever seeing the intent.
     private static final int IPC_MAX_CHARS = 150000;
     private static final long MAX_FILE_BYTES = 4 * 1024 * 1024;
     private static final int MAX_LINES = 10000;
@@ -108,6 +103,27 @@ public final class Logging {
             LINES.addLast(entry);
             postIoWrite(hadDirty, entry);
         }
+    }
+
+    /** Convenience info-level logger used by the companion Web UI. */
+    public static void i(String tag, String message) {
+        append(format(tag, message));
+    }
+
+    /** Convenience error-level logger used by the companion Web UI. */
+    public static void e(String tag, String message) {
+        append(format(tag, message));
+    }
+
+    /** Convenience error-level logger that preserves the exception details. */
+    public static void e(String tag, String message, Throwable throwable) {
+        String suffix = throwable == null ? "" : " | " + throwable;
+        append(format(tag, message + suffix));
+    }
+
+    private static String format(String tag, String message) {
+        return "[" + (tag == null || tag.isEmpty() ? "Logging" : tag) + "] "
+                + (message == null ? "" : message);
     }
 
     private static void trimLinesIfNeeded() {
