@@ -75,6 +75,30 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Apply Java API compatibility repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          logging='app/src/main/java/ps/reso/instaeclipse/utils/log/Logging.java'
+          downloader='app/src/main/java/ps/reso/instaeclipse/mods/media/FeedVideoDownloadHook.java'
+
+          grep -q 'public static void i(String tag, String message)' "$logging"
+          grep -q 'public static void e(String tag, String message, Throwable throwable)' "$logging"
+
+          python3 - "$downloader" <<'PY'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          text = path.read_text()
+          old = '    static boolean downloadAndSave(Context ctx, String url, String filename,\n'
+          new = '    public static boolean downloadAndSave(Context ctx, String url, String filename,\n'
+          if old not in text:
+              if new in text:
+                  raise SystemExit(0)
+              raise SystemExit('Expected downloadAndSave declaration not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Run unit tests
         shell: bash
         run: |
