@@ -107,4 +107,16 @@
             android:textStyle="bold" />
     </LinearLayout>
 
+    <!-- Source compatibility target for the pre-staging save hook. Kept hidden because
+         the native v2 UI uses the staged changes bar as its visible save control. -->
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fab_save"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:visibility="gone"
+        android:contentDescription="Save changes"
+        android:text="Save" />
+
 </RelativeLayout>
