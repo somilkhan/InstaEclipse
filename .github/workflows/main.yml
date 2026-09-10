@@ -54,6 +54,26 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Apply source compatibility repair for legacy media hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          downloader='app/src/main/java/ps/reso/instaeclipse/mods/media/FeedVideoDownloadHook.java'
+          grep -q 'static boolean downloadAndSave(Context ctx, String url, String filename,' "$downloader" || \
+            grep -q 'public static boolean downloadAndSave(Context ctx, String url, String filename,' "$downloader"
+          python3 - "$downloader" <<'PY'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          text = path.read_text()
+          old = '    static boolean downloadAndSave(Context ctx, String url, String filename,\n'
+          new = '    public static boolean downloadAndSave(Context ctx, String url, String filename,\n'
+          if old in text:
+              path.write_text(text.replace(old, new, 1))
+          elif new not in text:
+              raise SystemExit('Expected downloadAndSave declaration not found')
+          PY
+
       - name: Run unit tests
         shell: bash
         run: |
