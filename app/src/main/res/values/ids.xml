@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="tag_module_dialog_root" type="id" />
+    <!-- Legacy view references retained for source compatibility during native UI migration. -->
+    <item name="logging_copy" type="id" />
+    <item name="fab_save" type="id" />
 </resources>
