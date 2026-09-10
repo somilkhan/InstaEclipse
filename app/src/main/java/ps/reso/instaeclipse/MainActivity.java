@@ -133,6 +133,11 @@ public class MainActivity extends AppCompatActivity {
                 .commit();
     }
 
+    /** Compatibility entry point used by HomeFragment category shortcuts. */
+    public void navigateToFeatureCategory(int categoryId) {
+        navigateToFeatures(categoryId);
+    }
+
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
