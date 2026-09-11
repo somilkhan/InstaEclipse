@@ -7,14 +7,19 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -56,18 +61,27 @@ public class MainActivity extends AppCompatActivity {
             toolbarVersion.setText("v" + BuildConfig.VERSION_NAME);
         }
 
-        ImageView actionTelegram = findViewById(R.id.action_telegram);
-        if (actionTelegram != null) {
-            actionTelegram.setOnClickListener(v -> {
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/InstaEclipse")));
-                } catch (Exception ignored) {}
-            });
-        }
-
         ImageView actionUpdate = findViewById(R.id.action_update);
         if (actionUpdate != null) {
-            actionUpdate.setOnClickListener(v -> VersionCheckUtility.checkForUpdates(this));
+            actionUpdate.setOnClickListener(v -> V2Dialogs.showUpdateDialog(this));
+        }
+
+        ImageView actionDownloadApk = findViewById(R.id.action_download_apk);
+        if (actionDownloadApk != null) {
+            actionDownloadApk.setOnClickListener(v -> V2Dialogs.showApkInstallerDialog(this));
+        }
+
+        ImageView actionRestart = findViewById(R.id.action_restart);
+        if (actionRestart != null) {
+            actionRestart.setOnClickListener(v -> {
+                try {
+                    Intent restartIntent = new Intent("ps.reso.instaeclipse.ACTION_RESTART");
+                    sendBroadcast(restartIntent);
+                    Toast.makeText(this, "Restart signal dispatched to Instagram", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Toast.makeText(this, "Failed to send restart broadcast", Toast.LENGTH_SHORT).show();
+                }
+            });
         }
 
         ImageView actionAbout = findViewById(R.id.action_about);
@@ -77,11 +91,39 @@ public class MainActivity extends AppCompatActivity {
 
         bottomNavigation = findViewById(R.id.bottom_navigation);
         FrameLayout fragmentContainer = findViewById(R.id.fragment_container);
+
+        // Crucial: Handle Edge-to-Edge window insets to avoid top bar overlapping with status bar
+        View rootLayout = findViewById(R.id.main);
+        if (rootLayout != null) {
+            ViewCompat.setOnApplyWindowInsetsListener(rootLayout, (v, windowInsets) -> {
+                Insets statusBars = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars());
+                Insets navBars = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars());
+
+                View appBar = findViewById(R.id.app_bar_layout);
+                if (appBar != null) {
+                    appBar.setPadding(0, statusBars.top, 0, 0);
+                }
+
+                if (bottomNavigation != null) {
+                    ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) bottomNavigation.getLayoutParams();
+                    lp.bottomMargin = dp(12) + navBars.bottom;
+                    bottomNavigation.setLayoutParams(lp);
+                }
+
+                if (fragmentContainer != null) {
+                    int navHeight = bottomNavigation != null && bottomNavigation.getHeight() > 0 ? bottomNavigation.getHeight() : dp(68);
+                    fragmentContainer.setPadding(dp(12), 0, dp(12), navHeight + navBars.bottom + dp(24));
+                }
+
+                return windowInsets;
+            });
+        }
+
         if (bottomNavigation != null && fragmentContainer != null) {
             bottomNavigation.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
                 int navHeight = v.getHeight();
-                int bottomPadding = navHeight + dp(16);
-                if (fragmentContainer.getPaddingBottom() != bottomPadding) {
+                int bottomPadding = navHeight + dp(24);
+                if (fragmentContainer.getPaddingBottom() < bottomPadding) {
                     fragmentContainer.setPadding(dp(12), 0, dp(12), bottomPadding);
                 }
             });

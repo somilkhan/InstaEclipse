@@ -20,8 +20,8 @@
             android:layout_width="match_parent"
             android:layout_height="64dp"
             android:background="@color/v2_bg"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp">
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -31,28 +31,42 @@
 
                 <ImageView
                     android:id="@+id/toolbar_back_button"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Back"
-                    android:padding="8dp"
+                    android:padding="7dp"
                     android:src="@drawable/ic_arrow_back"
                     android:visibility="gone"
                     app:tint="@color/v2_text_primary" />
 
-                <ImageView
-                    android:id="@+id/toolbar_logo"
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
-                    android:contentDescription="App Logo"
-                    android:src="@drawable/ic_logo"
-                    app:tint="@color/v2_text_primary" />
+                <!-- Logo Box with Active Indicator -->
+                <FrameLayout
+                    android:layout_width="36dp"
+                    android:layout_height="36dp">
+
+                    <ImageView
+                        android:id="@+id/toolbar_logo"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:background="@drawable/bg_v2_header_logo"
+                        android:contentDescription="App Logo"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_sparkle"
+                        app:tint="@color/v2_text_primary" />
+
+                    <View
+                        android:layout_width="9dp"
+                        android:layout_height="9dp"
+                        android:layout_gravity="bottom|end"
+                        android:background="@drawable/bg_dot_active" />
+                </FrameLayout>
 
                 <LinearLayout
                     android:id="@+id/toolbar_title_container"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
+                    android:layout_marginStart="10dp"
                     android:layout_weight="1"
                     android:orientation="vertical">
 
@@ -68,52 +82,57 @@
                             android:layout_height="wrap_content"
                             android:text="@string/app_name"
                             android:textColor="@color/v2_text_primary"
-                            android:textSize="18sp"
+                            android:textSize="17sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/toolbar_version_badge"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="6dp"
                             android:background="@drawable/bg_v2_tag_badge"
-                            android:paddingStart="8dp"
+                            android:paddingStart="7dp"
                             android:paddingTop="2dp"
-                            android:paddingEnd="8dp"
+                            android:paddingEnd="7dp"
                             android:paddingBottom="2dp"
                             android:text="v2.0.0"
                             android:textColor="@color/v2_text_secondary"
-                            android:textSize="11sp"
+                            android:textSize="10.5sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <TextView
-                        android:id="@+id/toolbar_subtitle"
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Control Center"
-                        android:textColor="@color/v2_text_tertiary"
-                        android:textSize="12sp"
-                        android:visibility="gone" />
+                        android:layout_marginTop="2dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="12dp"
+                            android:layout_height="12dp"
+                            android:src="@drawable/ic_shield"
+                            app:tint="@color/v2_text_secondary" />
+
+                        <TextView
+                            android:id="@+id/toolbar_subtitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="4dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:text="LSPosed Active • com.instagram.android"
+                            android:textColor="@color/v2_text_secondary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
                 </LinearLayout>
 
-                <!-- Action icons -->
-                <ImageView
-                    android:id="@+id/action_telegram"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
-                    android:layout_marginStart="4dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Telegram"
-                    android:padding="8dp"
-                    android:src="@drawable/ic_telegram_logo"
-                    app:tint="@color/v2_text_secondary" />
-
+                <!-- Action icons mirroring Web Header -->
                 <ImageView
                     android:id="@+id/action_update"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
-                    android:layout_marginStart="4dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="2dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Updates"
                     android:padding="8dp"
@@ -121,10 +140,32 @@
                     app:tint="@color/v2_text_secondary" />
 
                 <ImageView
+                    android:id="@+id/action_download_apk"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="2dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Download APK"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_download"
+                    app:tint="@color/v2_text_secondary" />
+
+                <ImageView
+                    android:id="@+id/action_restart"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="2dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Restart Instagram"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_restart"
+                    app:tint="@color/v2_text_secondary" />
+
+                <ImageView
                     android:id="@+id/action_about"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
-                    android:layout_marginStart="4dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="2dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="About"
                     android:padding="8dp"
@@ -141,27 +182,30 @@
         android:clipToPadding="false"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:paddingBottom="88dp"
+        android:paddingBottom="96dp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
         android:layout_width="match_parent"
-        android:layout_height="64dp"
+        android:layout_height="68dp"
         android:layout_gravity="bottom"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginStart="14dp"
+        android:layout_marginEnd="14dp"
         android:layout_marginBottom="12dp"
         android:background="@drawable/bg_navigation_dock"
         android:elevation="12dp"
         android:paddingStart="6dp"
         android:paddingEnd="6dp"
-        app:itemIconSize="22dp"
+        app:itemActiveIndicatorColor="#25FFFFFF"
+        app:itemIconSize="20dp"
         app:itemIconTint="@color/navigation_item_colors"
-        app:itemTextColor="@color/navigation_item_colors"
-        app:itemPaddingTop="4dp"
         app:itemPaddingBottom="4dp"
-        app:labelVisibilityMode="selected"
+        app:itemPaddingTop="4dp"
+        app:itemTextAppearanceActive="@style/Widget.InstaEclipse.BottomNavText.Active"
+        app:itemTextAppearanceInactive="@style/Widget.InstaEclipse.BottomNavText.Inactive"
+        app:itemTextColor="@color/navigation_item_colors"
+        app:labelVisibilityMode="labeled"
         app:menu="@menu/bottom_navigation_menu" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

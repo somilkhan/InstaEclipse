@@ -137,7 +137,75 @@ public class HomeFragment extends Fragment {
             spotDexKit.setOnClickListener(v -> openCategoryInFeatures(0)); // Developer Options
         }
 
-        // 5. Quick Actions
+        // 5. Force Sync Hooks
+        View btnForceSync = view.findViewById(R.id.btn_force_sync_hooks);
+        if (btnForceSync != null) {
+            btnForceSync.setOnClickListener(v -> {
+                try {
+                    Intent syncIntent = new Intent("ps.reso.instaeclipse.ACTION_RESTART");
+                    requireContext().sendBroadcast(syncIntent);
+                    Toast.makeText(requireContext(), "Hooks re-synchronized with Instagram", Toast.LENGTH_SHORT).show();
+                } catch (Throwable t) {
+                    Toast.makeText(requireContext(), "Failed to sync hooks", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        // 6. Contributor Filters
+        TextView btnFilterAll = view.findViewById(R.id.btn_filter_all);
+        TextView btnFilterCore = view.findViewById(R.id.btn_filter_core);
+        TextView btnFilterSpecial = view.findViewById(R.id.btn_filter_special);
+
+        View row1 = view.findViewById(R.id.contrib_row_1);
+        View row2 = view.findViewById(R.id.contrib_row_2);
+        View row3 = view.findViewById(R.id.contrib_row_3);
+        View rowSpecial = view.findViewById(R.id.contrib_row_special);
+
+        if (btnFilterAll != null && btnFilterCore != null && btnFilterSpecial != null) {
+            btnFilterAll.setOnClickListener(v -> {
+                btnFilterAll.setBackgroundResource(R.drawable.bg_v2_filter_active);
+                btnFilterAll.setTextColor(getResources().getColor(R.color.v2_pill_text, null));
+                btnFilterCore.setBackground(null);
+                btnFilterCore.setTextColor(getResources().getColor(R.color.v2_text_secondary, null));
+                btnFilterSpecial.setBackground(null);
+                btnFilterSpecial.setTextColor(getResources().getColor(R.color.v2_text_secondary, null));
+
+                if (row1 != null) row1.setVisibility(View.VISIBLE);
+                if (row2 != null) row2.setVisibility(View.VISIBLE);
+                if (row3 != null) row3.setVisibility(View.VISIBLE);
+                if (rowSpecial != null) rowSpecial.setVisibility(View.VISIBLE);
+            });
+
+            btnFilterCore.setOnClickListener(v -> {
+                btnFilterCore.setBackgroundResource(R.drawable.bg_v2_filter_active);
+                btnFilterCore.setTextColor(getResources().getColor(R.color.v2_pill_text, null));
+                btnFilterAll.setBackground(null);
+                btnFilterAll.setTextColor(getResources().getColor(R.color.v2_text_secondary, null));
+                btnFilterSpecial.setBackground(null);
+                btnFilterSpecial.setTextColor(getResources().getColor(R.color.v2_text_secondary, null));
+
+                if (row1 != null) row1.setVisibility(View.VISIBLE);
+                if (row2 != null) row2.setVisibility(View.VISIBLE);
+                if (row3 != null) row3.setVisibility(View.VISIBLE);
+                if (rowSpecial != null) rowSpecial.setVisibility(View.GONE);
+            });
+
+            btnFilterSpecial.setOnClickListener(v -> {
+                btnFilterSpecial.setBackgroundResource(R.drawable.bg_v2_filter_active);
+                btnFilterSpecial.setTextColor(getResources().getColor(R.color.v2_pill_text, null));
+                btnFilterAll.setBackground(null);
+                btnFilterAll.setTextColor(getResources().getColor(R.color.v2_text_secondary, null));
+                btnFilterCore.setBackground(null);
+                btnFilterCore.setTextColor(getResources().getColor(R.color.v2_text_secondary, null));
+
+                if (row1 != null) row1.setVisibility(View.GONE);
+                if (row2 != null) row2.setVisibility(View.GONE);
+                if (row3 != null) row3.setVisibility(View.GONE);
+                if (rowSpecial != null) rowSpecial.setVisibility(View.VISIBLE);
+            });
+        }
+
+        // 7. Quick Actions
         View actionRestart = view.findViewById(R.id.action_restart_ig);
         if (actionRestart != null) {
             actionRestart.setOnClickListener(v -> {
