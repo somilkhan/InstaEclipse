@@ -60,12 +60,14 @@ import ps.reso.instaeclipse.ui.theme.ThemeCustomizerActivity;
 
 public class FeaturesFragment extends Fragment {
 
+    public static final String ARG_CATEGORY_ID = "category_id";
+
     private SharedPreferences localCache;
     private View fragmentView;
     private RecyclerView recyclerFeatures;
     private FeatureAdapter adapter;
     private TextView tvHeaderTitle;
-    private ImageButton btnBack;
+    private ImageView btnBack;
     private ExtendedFloatingActionButton fabSave;
     private View layoutStagedBar;
     private TextView tvStagedCount;
@@ -78,6 +80,16 @@ public class FeaturesFragment extends Fragment {
     private ActivityResultLauncher<Intent> themeCustomizerLauncher;
 
     private String currentMenu = "main";
+
+    public static FeaturesFragment newInstance(int categoryId) {
+        FeaturesFragment fragment = new FeaturesFragment();
+        if (categoryId >= 0) {
+            Bundle args = new Bundle();
+            args.putInt(ARG_CATEGORY_ID, categoryId);
+            fragment.setArguments(args);
+        }
+        return fragment;
+    }
 
     // STAGING SYSTEM: Holds changes before applying
     private final Map<String, Boolean> stagedChanges = new HashMap<>();
@@ -267,7 +279,9 @@ public class FeaturesFragment extends Fragment {
             btnSaveStaged.setOnClickListener(v -> commitStagedChanges());
         }
 
-        btnBack.setOnClickListener(v -> loadMainMenu());
+        if (btnBack != null) {
+            btnBack.setOnClickListener(v -> loadMainMenu());
+        }
 
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
             @Override
@@ -285,7 +299,13 @@ public class FeaturesFragment extends Fragment {
             fabSave.setOnClickListener(v -> commitStagedChanges());
         }
 
-        loadMainMenu();
+        Bundle args = getArguments();
+        int initialCategory = args != null ? args.getInt(ARG_CATEGORY_ID, -1) : -1;
+        if (initialCategory >= 0) {
+            openCategory(initialCategory);
+        } else {
+            loadMainMenu();
+        }
 
         return fragmentView;
     }
@@ -321,6 +341,7 @@ public class FeaturesFragment extends Fragment {
 
         public int segmentPosition;
         public int segmentSize;
+        public String description;
     }
 
     static class HeaderViewHolder extends RecyclerView.ViewHolder {
@@ -397,30 +418,37 @@ public class FeaturesFragment extends Fragment {
                 ItemViewHolder itemHolder = (ItemViewHolder) holder;
 
                 itemHolder.tvTitle.setText(item.title);
+                if (item.description != null && !item.description.trim().isEmpty()) {
+                    itemHolder.tvDescription.setText(item.description);
+                    itemHolder.tvDescription.setVisibility(View.VISIBLE);
+                } else {
+                    itemHolder.tvDescription.setVisibility(View.GONE);
+                }
                 bindIcon(itemHolder.ivIcon, item.iconRes, item.accentColor);
 
+                Context context = itemHolder.itemView.getContext();
                 // Master switches get a tinted card + bold text to stand out from regular items
                 boolean isMaster = item.type == FeatureItem.TYPE_MASTER_SWITCH;
                 if (isMaster) {
-                    int bg = MaterialColors.getColor(itemHolder.itemView, com.google.android.material.R.attr.colorSecondaryContainer);
-                    int fg = MaterialColors.getColor(itemHolder.itemView, com.google.android.material.R.attr.colorOnSecondaryContainer);
+                    int bg = ContextCompat.getColor(context, R.color.v2_surface_variant);
+                    int fg = ContextCompat.getColor(context, R.color.v2_text_primary);
                     itemHolder.cardView.setCardBackgroundColor(bg);
                     itemHolder.tvTitle.setTextColor(fg);
                     itemHolder.tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
                 } else {
-                    int bg = MaterialColors.getColor(itemHolder.itemView, com.google.android.material.R.attr.colorSurfaceContainerLow);
-                    int defaultTextColor = MaterialColors.getColor(itemHolder.itemView, com.google.android.material.R.attr.colorOnSurface);
+                    int bg = ContextCompat.getColor(context, R.color.v2_surface);
+                    int defaultTextColor = ContextCompat.getColor(context, R.color.v2_text_primary);
                     itemHolder.cardView.setCardBackgroundColor(bg);
                     itemHolder.tvTitle.setTextColor(item.textColor != 0 ? item.textColor : defaultTextColor);
                     itemHolder.tvTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
                 }
 
-                float largeRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24f, getResources().getDisplayMetrics());
+                float largeRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16f, getResources().getDisplayMetrics());
                 float smallRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4f, getResources().getDisplayMetrics());
 
                 ShapeAppearanceModel.Builder shapeBuilder = itemHolder.cardView.getShapeAppearanceModel().toBuilder();
 
-                if (item.segmentSize == 1) {
+                if (item.segmentSize <= 1) {
                     shapeBuilder.setAllCornerSizes(largeRadius);
                 } else if (item.segmentPosition == 0) {
                     shapeBuilder.setTopLeftCornerSize(largeRadius).setTopRightCornerSize(largeRadius)
@@ -580,11 +608,23 @@ public class FeaturesFragment extends Fragment {
     // =========================================================
 
     private void showMenu(String title, List<Object> definitions) {
+        if (fragmentView == null) return;
         ViewGroup headerLayout = fragmentView.findViewById(R.id.header_layout);
-        TransitionManager.beginDelayedTransition(headerLayout, new AutoTransition().setDuration(200));
+        boolean isSubmenu = !title.equals(getString(R.string.features));
 
-        tvHeaderTitle.setText(title);
-        btnBack.setVisibility(title.equals(getString(R.string.features)) ? View.GONE : View.VISIBLE);
+        if (headerLayout != null) {
+            try {
+                TransitionManager.beginDelayedTransition(headerLayout, new AutoTransition().setDuration(200));
+            } catch (Throwable ignored) {}
+            headerLayout.setVisibility(isSubmenu ? View.VISIBLE : View.GONE);
+        }
+
+        if (tvHeaderTitle != null) {
+            tvHeaderTitle.setText(title);
+        }
+        if (btnBack != null) {
+            btnBack.setVisibility(isSubmenu ? View.VISIBLE : View.GONE);
+        }
 
         List<FeatureItem> displayList = new ArrayList<>();
         for (int di = 0; di < definitions.size(); di++) {
@@ -641,6 +681,12 @@ public class FeaturesFragment extends Fragment {
         return item;
     }
 
+    private FeatureItem createNav(int iconRes, String accentHex, String title, String description, Runnable navAction) {
+        FeatureItem item = createNav(iconRes, accentHex, title, navAction);
+        item.description = description;
+        return item;
+    }
+
     private FeatureItem createClickable(String title, int color, Runnable onClick) {
         FeatureItem item = new FeatureItem();
         item.type = FeatureItem.TYPE_CLICKABLE;
@@ -657,6 +703,12 @@ public class FeaturesFragment extends Fragment {
         return item;
     }
 
+    private FeatureItem createClickable(int iconRes, String accentHex, String title, String description, Runnable onClick) {
+        FeatureItem item = createClickable(iconRes, accentHex, title, onClick);
+        item.description = description;
+        return item;
+    }
+
     private FeatureItem createSwitch(String title, String prefKey) {
         FeatureItem item = new FeatureItem();
         item.type = FeatureItem.TYPE_SWITCH;
@@ -669,6 +721,12 @@ public class FeaturesFragment extends Fragment {
         FeatureItem item = createSwitch(title, prefKey);
         item.iconRes = iconRes;
         item.accentColor = Color.parseColor(accentHex);
+        return item;
+    }
+
+    private FeatureItem createSwitch(int iconRes, String accentHex, String title, String description, String prefKey) {
+        FeatureItem item = createSwitch(iconRes, accentHex, title, prefKey);
+        item.description = description;
         return item;
     }
 
@@ -715,25 +773,25 @@ public class FeaturesFragment extends Fragment {
 
         defs.add(getString(R.string.feat_categories));
         defs.add(Arrays.asList(
-                createNav(R.drawable.ic_tune, "#0A84FF", getString(R.string.ig_dialog_menu_dev_options), this::loadDevMenu),
-                createNav(R.drawable.ic_eye, "#5E5CE6", getString(R.string.ig_dialog_menu_ghost_settings), this::loadGhostMenu),
-                createNav(R.drawable.ic_shield, "#FF453A", getString(R.string.ig_dialog_menu_ad_analytics), this::loadAdsMenu),
-                createNav(R.drawable.ic_sparkle, "#64D2FF", getString(R.string.ig_dialog_menu_clean_feed), this::loadCleanFeedMenu),
-                createNav(R.drawable.ic_block, "#30D158", getString(R.string.ig_dialog_menu_distraction_free), this::loadDistractionMenu),
-                createNav(R.drawable.ic_settings_gear, "#BF5AF2", getString(R.string.ig_dialog_menu_misc), this::loadMiscMenu),
-                createNav(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_menu_downloader), this::loadDownloaderMenu),
-                createNav(R.drawable.ic_profile_tools, "#0A84FF", getString(R.string.ig_dialog_menu_profile), this::loadProfileMenu),
-                createNav(R.drawable.ic_pin, "#FFD60A", getString(R.string.ig_dialog_menu_location), this::loadLocationMenu),
-                createNav(R.drawable.ic_movie, "#32D74B", getString(R.string.ig_dialog_menu_quality), this::loadQualityMenu),
-                createNav(R.drawable.ic_palette, "#FF2D55", getString(R.string.ig_dialog_menu_theme), this::loadThemeMenu)
+                createNav(R.drawable.ic_tune, "#0A84FF", getString(R.string.ig_dialog_menu_dev_options), "MC Overrides, DexKit hooks & dev options", this::loadDevMenu),
+                createNav(R.drawable.ic_eye, "#5E5CE6", getString(R.string.ig_dialog_menu_ghost_settings), "Hide seen status, typing & live presence", this::loadGhostMenu),
+                createNav(R.drawable.ic_shield, "#FF453A", getString(R.string.ig_dialog_menu_ad_analytics), "Block sponsored posts, ads & telemetry", this::loadAdsMenu),
+                createNav(R.drawable.ic_sparkle, "#64D2FF", getString(R.string.ig_dialog_menu_clean_feed), "Hide suggested posts & Threads recommendations", this::loadCleanFeedMenu),
+                createNav(R.drawable.ic_block, "#30D158", getString(R.string.ig_dialog_menu_distraction_free), "Disable Reels, Explore feed & comments", this::loadDistractionMenu),
+                createNav(R.drawable.ic_settings_gear, "#BF5AF2", getString(R.string.ig_dialog_menu_misc), "Autoplay, story flipping, copy captions & zoom", this::loadMiscMenu),
+                createNav(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_menu_downloader), "Download posts, reels, stories & profiles", this::loadDownloaderMenu),
+                createNav(R.drawable.ic_profile_tools, "#0A84FF", getString(R.string.ig_dialog_menu_profile), "Profile tools, follower indicator & inspect", this::loadProfileMenu),
+                createNav(R.drawable.ic_pin, "#FFD60A", getString(R.string.ig_dialog_menu_location), "Simulate GPS location coordinates", this::loadLocationMenu),
+                createNav(R.drawable.ic_movie, "#32D74B", getString(R.string.ig_dialog_menu_quality), "Force maximum bitrate & playback resolution", this::loadQualityMenu),
+                createNav(R.drawable.ic_palette, "#FF2D55", getString(R.string.ig_dialog_menu_theme), "OLED black, custom accent colors & styling", this::loadThemeMenu)
         ));
 
         defs.add(getString(R.string.feat_tools));
         defs.add(Arrays.asList(
-                createClickable(R.drawable.ic_save, "#30D158", getString(R.string.ig_dialog_backup_settings), this::backupSettings),
-                createClickable(R.drawable.ic_folder, "#0A84FF", getString(R.string.ig_dialog_restore_settings), this::restoreSettings),
-                createClickable(R.drawable.ic_info, "#8E8E93", getString(R.string.ig_dialog_menu_about), this::showAboutDialog),
-                createClickable(R.drawable.ic_restart, "#FF453A", getString(R.string.ig_dialog_menu_restart), this::restartInstagram)
+                createClickable(R.drawable.ic_save, "#30D158", getString(R.string.ig_dialog_backup_settings), "Export current settings to JSON file", this::backupSettings),
+                createClickable(R.drawable.ic_folder, "#0A84FF", getString(R.string.ig_dialog_restore_settings), "Restore configuration from JSON file", this::restoreSettings),
+                createClickable(R.drawable.ic_info, "#8E8E93", getString(R.string.ig_dialog_menu_about), "Project contributors & version info", this::showAboutDialog),
+                createClickable(R.drawable.ic_restart, "#FF453A", getString(R.string.ig_dialog_menu_restart), "Dispatch restart signal to Instagram", this::restartInstagram)
         ));
 
         showMenu(getString(R.string.features), defs);
@@ -1182,11 +1240,13 @@ public class FeaturesFragment extends Fragment {
             }
         };
         IntentFilter filter = new IntentFilter("ps.reso.instaeclipse.ACTION_SEND_CONFIG");
-        if (Build.VERSION.SDK_INT >= 33) {
-            requireContext().registerReceiver(configReceiver, filter, Context.RECEIVER_EXPORTED);
-        } else {
-            ContextCompat.registerReceiver(requireContext(), configReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
-        }
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                requireContext().registerReceiver(configReceiver, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                ContextCompat.registerReceiver(requireContext(), configReceiver, filter, ContextCompat.RECEIVER_EXPORTED);
+            }
+        } catch (Throwable ignored) {}
         Intent request = new Intent("ps.reso.instaeclipse.ACTION_EXPORT_CONFIG");
         request.setPackage("com.instagram.android");
         requireContext().sendBroadcast(request);
@@ -1282,6 +1342,15 @@ public class FeaturesFragment extends Fragment {
     }
 
     public void openCategory(int categoryId) {
+        if (fragmentView == null) {
+            Bundle args = getArguments();
+            if (args == null) {
+                args = new Bundle();
+                setArguments(args);
+            }
+            args.putInt(ARG_CATEGORY_ID, categoryId);
+            return;
+        }
         switch (categoryId) {
             case 0: loadDevMenu(); break;
             case 1: loadGhostMenu(); break;
@@ -1312,18 +1381,22 @@ public class FeaturesFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        IntentFilter filter = new IntentFilter("ps.reso.instaeclipse.ACTION_SEND_PREFS");
-        if (Build.VERSION.SDK_INT >= 33) {
-            requireContext().registerReceiver(prefsReceiver, filter, Context.RECEIVER_EXPORTED);
-        } else {
-            ContextCompat.registerReceiver(requireContext(), prefsReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
-        }
-        requireContext().sendBroadcast(new Intent("ps.reso.instaeclipse.ACTION_REQUEST_PREFS"));
+        try {
+            IntentFilter filter = new IntentFilter("ps.reso.instaeclipse.ACTION_SEND_PREFS");
+            if (Build.VERSION.SDK_INT >= 33) {
+                requireContext().registerReceiver(prefsReceiver, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                ContextCompat.registerReceiver(requireContext(), prefsReceiver, filter, ContextCompat.RECEIVER_EXPORTED);
+            }
+            requireContext().sendBroadcast(new Intent("ps.reso.instaeclipse.ACTION_REQUEST_PREFS"));
+        } catch (Throwable ignored) {}
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        requireContext().unregisterReceiver(prefsReceiver);
+        try {
+            requireContext().unregisterReceiver(prefsReceiver);
+        } catch (Throwable ignored) {}
     }
 }

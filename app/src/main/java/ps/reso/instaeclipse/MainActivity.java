@@ -33,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_STORAGE_PROMPTED = "storage_permission_prompted";
 
     private BottomNavigationView bottomNavigation;
+    private boolean isNavigatingInternally = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,8 +94,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (bottomNavigation != null) {
-            bottomNavigation.setSelectedItemId(R.id.nav_home);
             bottomNavigation.setOnItemSelectedListener(item -> {
+                if (isNavigatingInternally) {
+                    return true;
+                }
                 Fragment selectedFragment = null;
                 int itemId = item.getItemId();
                 if (itemId == R.id.nav_home) {
@@ -117,19 +120,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void navigateToFeatures(int categoryId) {
+    private void selectBottomNavWithoutTriggeringListener(int navItemId) {
         if (bottomNavigation != null) {
-            bottomNavigation.setSelectedItemId(R.id.nav_features);
+            isNavigatingInternally = true;
+            bottomNavigation.setSelectedItemId(navItemId);
+            isNavigatingInternally = false;
         }
-        FeaturesFragment fragment = new FeaturesFragment();
+    }
+
+    public void navigateToFeatures(int categoryId) {
+        selectBottomNavWithoutTriggeringListener(R.id.nav_features);
+        FeaturesFragment fragment = FeaturesFragment.newInstance(categoryId);
         getSupportFragmentManager().beginTransaction()
                 .setReorderingAllowed(true)
                 .replace(R.id.fragment_container, fragment)
-                .runOnCommit(() -> {
-                    if (categoryId >= 0) {
-                        fragment.openCategory(categoryId);
-                    }
-                })
                 .commit();
     }
 
