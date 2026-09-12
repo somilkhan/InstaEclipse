@@ -197,7 +197,6 @@
         android:elevation="12dp"
         android:paddingStart="6dp"
         android:paddingEnd="6dp"
-        app:itemActiveIndicatorColor="#25FFFFFF"
         app:itemIconSize="20dp"
         app:itemIconTint="@color/navigation_item_colors"
         app:itemPaddingBottom="4dp"
