@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
-import { ActiveTab, FeatureSubmenu } from './types';
+import { ActiveTab } from './types';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { HomeTab } from './components/HomeTab';
@@ -13,24 +13,8 @@ import { AboutDialog } from './components/AboutDialog';
 import { UpdateModal } from './components/UpdateModal';
 import { ApkInstallerModal } from './components/ApkInstallerModal';
 
-const SUBMENU_TITLES: Record<FeatureSubmenu, string> = {
-  main: 'Features',
-  dev: 'Developer Options',
-  ghost: 'Ghost Mode',
-  qt: 'Quick Toggles',
-  ads: 'Ad & Analytics Block',
-  cleanfeed: 'Clean Feed',
-  distract: 'Distraction-Free',
-  misc: 'Misc Features',
-  downloader: 'Downloader',
-  location: 'Location',
-  quality: 'Video Quality',
-  theme: 'Theme Customizer',
-};
-
 const MainContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
-  const [featureSubmenu, setFeatureSubmenu] = useState<FeatureSubmenu>('main');
 
   const {
     toastMessage,
@@ -47,26 +31,11 @@ const MainContent: React.FC = () => {
       case 'home':
         return 'InstaEclipse';
       case 'features':
-        return SUBMENU_TITLES[featureSubmenu];
+        return 'Features & Toggles';
       case 'logs':
-        return 'Logs';
+        return 'Diagnostics & Logs';
       case 'help':
         return 'Help & FAQ';
-    }
-  };
-
-  const isSubmenuOpen = activeTab === 'features' && featureSubmenu !== 'main';
-
-  const handleBack = () => {
-    if (isSubmenuOpen) {
-      setFeatureSubmenu('main');
-    }
-  };
-
-  const handleTabChange = (tab: ActiveTab) => {
-    setActiveTab(tab);
-    if (tab === 'features' && featureSubmenu !== 'main') {
-      // Keep submenu or let user navigate
     }
   };
 
@@ -82,34 +51,24 @@ const MainContent: React.FC = () => {
       {/* Top Header */}
       <Header
         title={getHeaderTitle()}
-        showBack={isSubmenuOpen}
-        onBack={handleBack}
-        currentSubmenu={featureSubmenu}
+        showBack={false}
+        onBack={() => setActiveTab('home')}
       />
 
       {/* Main Screen Container */}
-      <main className="relative z-1 flex-1 max-w-3xl w-full mx-auto p-4 sm:p-6 overflow-x-hidden">
-        {activeTab === 'home' && <HomeTab />}
-        {activeTab === 'features' && (
-          <FeaturesTab
-            currentSubmenu={featureSubmenu}
-            onSubmenuChange={menu => {
-              if (menu === 'theme') {
-                setOpenThemeCustomizer(true);
-              } else if (menu === 'location') {
-                setOpenLocationPicker(true);
-              } else {
-                setFeatureSubmenu(menu);
-              }
-            }}
-          />
+      <main className="relative z-1 flex-1 max-w-2xl w-full mx-auto p-4 sm:p-5 overflow-x-hidden">
+        {activeTab === 'home' && (
+          <HomeTab onNavigateToSettings={() => setActiveTab('features')} />
         )}
+        {activeTab === 'features' && <FeaturesTab />}
         {activeTab === 'logs' && <LogsTab />}
-        {activeTab === 'help' && <HelpTab />}
+        {activeTab === 'help' && (
+          <HelpTab onOpenLogs={() => setActiveTab('logs')} />
+        )}
       </main>
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Overlays / Modals */}
       {openThemeCustomizer && (
@@ -128,7 +87,7 @@ const MainContent: React.FC = () => {
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-18 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 pointer-events-none">
-          <div className="px-4 py-2 rounded-2xl glass-pill bg-zinc-950/90 border border-white/20 text-white text-xs font-semibold shadow-2xl backdrop-blur-2xl flex items-center gap-2.5">
+          <div className="px-4 py-2 rounded-2xl bg-zinc-950/90 border border-white/20 text-white text-xs font-semibold shadow-2xl backdrop-blur-2xl flex items-center gap-2.5">
             <span className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] shrink-0" />
             <span>{toastMessage}</span>
           </div>
